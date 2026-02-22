@@ -1,7 +1,10 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { useAuth } from "@/components/auth/AuthProvider";
 import { NGOINFO_LOGO_URL } from "@/lib/brand";
 
 const navItems = [
@@ -11,6 +14,8 @@ const navItems = [
 ];
 
 export default function AuthenticatedLayout({ children }: { children: ReactNode }) {
+  const { logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-brand-app-bg">
       <div className="grid min-h-screen md:grid-cols-[280px_1fr]">
@@ -39,6 +44,7 @@ export default function AuthenticatedLayout({ children }: { children: ReactNode 
           <div className="px-4 pb-6 md:px-6">
             <button
               type="button"
+              onClick={() => void logout()}
               className="h-11 w-full rounded-[8px] border border-brand-border bg-transparent px-4 text-left text-sm font-medium text-brand-text-secondary"
             >
               Logout
