@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ApiClientError, apiRequest } from "@/lib/api-client";
@@ -16,6 +16,14 @@ const errorMessages: Record<string, string> = {
 };
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginClient />
+    </Suspense>
+  );
+}
+
+function LoginClient() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [loadingGoogle, setLoadingGoogle] = useState(false);
@@ -138,6 +146,17 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <section className="mx-auto max-w-xl">
+      <div className="card">
+        <h3>Sign in to GrantPilot</h3>
+        <p className="mt-2 text-secondary">Preparing sign-in...</p>
       </div>
     </section>
   );

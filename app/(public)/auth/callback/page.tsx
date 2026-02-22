@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -11,6 +11,14 @@ import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 const AUTH_ERROR_REDIRECT = "/login?error=auth_exchange_failed";
 
 export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<AuthCallbackFallback />}>
+      <AuthCallbackClient />
+    </Suspense>
+  );
+}
+
+function AuthCallbackClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loginWithTokens } = useAuth();
@@ -64,6 +72,15 @@ export default function AuthCallbackPage() {
     <section className="mx-auto max-w-2xl">
       <LoadingSkeleton lines={2} />
       <p className="mt-4 text-secondary">{message}</p>
+    </section>
+  );
+}
+
+function AuthCallbackFallback() {
+  return (
+    <section className="mx-auto max-w-2xl">
+      <LoadingSkeleton lines={2} />
+      <p className="mt-4 text-secondary">Signing you in...</p>
     </section>
   );
 }

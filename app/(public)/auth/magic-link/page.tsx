@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -17,6 +17,14 @@ const magicLinkErrorMessages: Record<string, string> = {
 };
 
 export default function MagicLinkPage() {
+  return (
+    <Suspense fallback={<MagicLinkFallback />}>
+      <MagicLinkClient />
+    </Suspense>
+  );
+}
+
+function MagicLinkClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loginWithTokens } = useAuth();
@@ -84,6 +92,15 @@ export default function MagicLinkPage() {
     );
   }
 
+  return (
+    <section className="mx-auto max-w-2xl">
+      <LoadingSkeleton lines={2} />
+      <p className="mt-4 text-secondary">Validating your magic link...</p>
+    </section>
+  );
+}
+
+function MagicLinkFallback() {
   return (
     <section className="mx-auto max-w-2xl">
       <LoadingSkeleton lines={2} />
