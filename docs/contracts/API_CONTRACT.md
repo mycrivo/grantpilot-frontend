@@ -11,14 +11,12 @@
 HTTP status codes: 400/401/403/404/409/422/429/500
 
 Error JSON:
-```
 {
-  "error_code": "string",
-  "message": "string",
-  "details": {},
-  "request_id": "string"
+"error_code": "string",
+"message": "string",
+"details": {},
+"request_id": "string"
 }
-```
 
 Notes:
 - `details` is optional
@@ -30,12 +28,11 @@ Notes:
 Purpose: returns authorization_url; frontend navigates
 
 Response 200:
-```
 {
-  "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?...",
-  "state": "opaque_state_string"
+"authorization_url": "https://accounts.google.com/o/oauth2/v2/auth
+?...",
+"state": "opaque_state_string"
 }
-```
 
 Errors:
 - 500 OAUTH_CONFIG_ERROR
@@ -62,25 +59,23 @@ Code semantics:
 - Codes are single-use and short-lived (60 seconds)
 
 Request:
-```
 { "code": "opaque_one_time_code" }
-```
 
 Response 200 (same as OAuth callback JSON response):
-```
 {
-  "access_token": "jwt",
-  "refresh_token": "opaque",
-  "token_type": "Bearer",
-  "expires_in": 900,
-  "user": {
-    "id": "uuid",
-    "email": "user@example.org",
-    "full_name": "Optional Name",
-    "plan": "FREE"
-  }
+"access_token": "jwt",
+"refresh_token": "opaque",
+"token_type": "Bearer",
+"expires_in": 900,
+"user": {
+"id": "uuid",
+"email": "user@example.org
+",
+"full_name": "Optional Name",
+"plan": "FREE | GROWTH | IMPACT"
 }
-```
+}
+
 
 Errors:
 - 400 OAUTH_CODE_MISSING
@@ -89,14 +84,15 @@ Errors:
 
 ### 4) POST /api/auth/magic-link/request
 Request:
-```
-{ "email": "user@example.org" }
-```
+
+{ "email": "user@example.org
+" }
+
 
 Response 200:
-```
+
 { "status": "sent" }
-```
+
 
 Errors:
 - 422 VALIDATION_ERROR
@@ -105,9 +101,9 @@ Errors:
 
 ### 5) POST /api/auth/magic-link/consume
 Request:
-```
+
 { "token": "opaque_token_from_email" }
-```
+
 
 Response 200 (same as OAuth callback JSON response)
 
@@ -119,19 +115,19 @@ Errors:
 
 ### 6) POST /api/auth/refresh
 Request:
-```
+
 { "refresh_token": "opaque" }
-```
+
 
 Response 200:
-```
+
 {
-  "access_token": "jwt",
-  "refresh_token": "new_opaque",
-  "token_type": "Bearer",
-  "expires_in": 900
+"access_token": "jwt",
+"refresh_token": "new_opaque",
+"token_type": "Bearer",
+"expires_in": 900
 }
-```
+
 
 Errors:
 - 401 REFRESH_TOKEN_INVALID
@@ -141,14 +137,14 @@ Errors:
 
 ### 7) POST /api/auth/logout
 Request:
-```
+
 { "refresh_token": "opaque" }
-```
+
 
 Response 200:
-```
+
 { "status": "logged_out" }
-```
+
 
 Errors:
 - 401 REFRESH_TOKEN_INVALID
@@ -161,14 +157,14 @@ Purpose: create a Stripe Checkout session for subscription.
 Auth: REQUIRED (Bearer JWT)
 
 Request:
-```
+
 { "plan": "GROWTH" | "IMPACT" }
-```
+
 
 Response 200:
-```
+
 { "checkout_url": "<string>" }
-```
+
 
 Errors:
 - 400 BAD_REQUEST (invalid or missing plan)
@@ -184,9 +180,9 @@ Auth: REQUIRED (Bearer JWT)
 Request: none
 
 Response 200:
-```
+
 { "portal_url": "<string>" }
-```
+
 
 Errors:
 - 400 BAD_REQUEST (no Stripe customer / no billing account)
@@ -207,6 +203,206 @@ Errors:
 - 500 INTERNAL_SERVER_ERROR (persistence failure or transient processing error)
 
 Note: Stripe is the billing source of truth; subscription state is synchronized via webhooks; DB stores a cache/projection for entitlements.
+
+## Me / Entitlements (MVP — Locked)
+
+### 1) GET /api/me/entitlements
+Purpose: return current plan + quota counters for gating CTAs (QuotaGate) and /start preflight.
+
+Auth: REQUIRED (Bearer access token)
+
+Response 200:
+
+{
+"plan": "FREE" | "GROWTH" | "IMPACT",
+"entitlements": {
+"fit_scans": {
+"limit": 0,
+"used": 0,
+"remaining": 0,
+"period": "LIFETIME" | "BILLING_CYCLE",
+"reset_at": "ISO-8601 timestamp or null"
+},
+"proposals": {
+"limit": 0,
+"used": 0,
+"remaining": 0,
+"period": "LIFETIME" | "BILLING_CYCLE",
+"reset_at": "ISO-8601 timestamp or null"
+},
+"proposal_regenerations": {
+"limit_per_proposal": 0
+}
+}
+}
+
+
+Errors:
+- 401 UNAUTHORIZED
+- 500 INTERNAL_SERVER_ERROR
+
+## NGO Profile Endpoints (MVP — Locked)
+
+### 1) GET /api/ngo-profile
+Purpose: return the authenticated user’s NGO profile.
+
+Auth: REQUIRED (Bearer access token)
+
+Response 200:
+
+{
+"ngo_profile": {
+"id": "uuid",
+
+"organization_name": "string",
+"country_of_registration": "string",
+"year_of_establishment": 0,
+
+"website": "string or null",
+"contact_person_name": "string or null",
+"contact_email": "string or null",
+
+"mission_statement": "string",
+
+"focus_sectors": [
+  "EDUCATION | HEALTH | AGRICULTURE | WASH | GOVERNANCE | CLIMATE | GENDER | LIVELIHOODS | PROTECTION | OTHER"
+],
+"geographic_areas_of_work": ["string"],
+"target_groups": ["string"],
+
+"past_projects": [
+  {
+    "id": "uuid",
+    "project_title": "string",
+    "donor_funder": "string or null",
+    "duration": "string or null",
+    "location": "string or null",
+    "summary": "string or null"
+  }
+],
+
+"full_time_staff": 0,
+"annual_budget_amount": 0,
+"annual_budget_currency": "USD | GBP | EUR | INR | KES | string or null",
+"me_practices": "string or null",
+"previous_funders": ["string"],
+
+"created_at": "ISO-8601 timestamp",
+"updated_at": "ISO-8601 timestamp"
+
+}
+}
+
+
+Notes:
+- All fields are persisted; frontend may save partial profiles (DRAFT) via POST/PUT.
+- `focus_sectors`, `geographic_areas_of_work`, `target_groups`, `previous_funders` may be empty arrays.
+- `past_projects` may be an empty array; completeness requires at least 1 item with a non-empty `project_title`.
+
+Errors:
+- 401 UNAUTHORIZED
+- 404 PROFILE_NOT_FOUND
+- 500 INTERNAL_SERVER_ERROR
+
+### 2) POST /api/ngo-profile
+Purpose: create the authenticated user’s NGO profile.
+
+Auth: REQUIRED (Bearer access token)
+
+Request:
+
+{
+"organization_name": "string",
+"country_of_registration": "string",
+"year_of_establishment": 0,
+
+"website": "string or null",
+"contact_person_name": "string or null",
+"contact_email": "string or null",
+
+"mission_statement": "string",
+
+"focus_sectors": ["EDUCATION | HEALTH | AGRICULTURE | WASH | GOVERNANCE | CLIMATE | GENDER | LIVELIHOODS | PROTECTION | OTHER"],
+"geographic_areas_of_work": ["string"],
+"target_groups": ["string"],
+
+"past_projects": [
+{
+"project_title": "string",
+"donor_funder": "string or null",
+"duration": "string or null",
+"location": "string or null",
+"summary": "string or null"
+}
+],
+
+"full_time_staff": 0,
+"annual_budget_amount": 0,
+"annual_budget_currency": "USD | GBP | EUR | INR | KES | string or null",
+"me_practices": "string or null",
+"previous_funders": ["string"]
+}
+
+
+Response 200:
+- Same as `GET /api/ngo-profile`
+
+Errors:
+- 401 UNAUTHORIZED
+- 409 PROFILE_ALREADY_EXISTS
+- 422 VALIDATION_ERROR
+- 500 INTERNAL_SERVER_ERROR
+
+### 3) PUT /api/ngo-profile
+Purpose: update the authenticated user’s NGO profile.
+
+Auth: REQUIRED (Bearer access token)
+
+Request:
+- Same shape as POST
+
+Response 200:
+- Same as `GET /api/ngo-profile`
+
+Errors:
+- 401 UNAUTHORIZED
+- 404 PROFILE_NOT_FOUND
+- 422 VALIDATION_ERROR
+- 500 INTERNAL_SERVER_ERROR
+
+### 4) GET /api/ngo-profile/completeness
+Purpose: provide completeness status and missing required fields for gating Fit Scans and showing the completeness bar.
+
+Auth: REQUIRED (Bearer access token)
+
+Response 200:
+
+{
+"status": "MISSING | DRAFT | COMPLETE",
+"percent_complete": 0,
+"required_fields": [
+"organization_name",
+"country_of_registration",
+"mission_statement",
+"focus_sectors",
+"geographic_areas_of_work",
+"target_groups",
+"past_projects"
+],
+"missing_fields": ["string"],
+"updated_at": "ISO-8601 timestamp or null"
+}
+
+
+Rules:
+- If no profile exists: `status="MISSING"`, `percent_complete=0`, `missing_fields` MUST include all `required_fields`.
+- If profile exists but required fields missing: `status="DRAFT"`, `missing_fields` contains the remaining required keys.
+- If complete: `status="COMPLETE"`, `missing_fields=[]`, `percent_complete=100`.
+- `past_projects` is considered missing if array is empty OR no item has a non-empty `project_title`.
+
+Errors:
+- 401 UNAUTHORIZED
+- 500 INTERNAL_SERVER_ERROR
 
 Fit Scan Endpoints (MVP — Locked)
 7) POST /api/fit-scans
@@ -261,7 +457,7 @@ Errors
 
 409 PROFILE_INCOMPLETE
 
-details.missing_fields[] MUST be provided
+details.missing_fields[] MUST be provided (keys align with /api/ngo-profile/completeness missing_fields)
 
 429 QUOTA_EXCEEDED
 
