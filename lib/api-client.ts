@@ -80,6 +80,17 @@ function buildUserMessage(status: number, envelope: ApiErrorEnvelope | null) {
   return "Request failed. Please try again.";
 }
 
+function forceLoginRedirect() {
+  if (!authHandlers) {
+    return;
+  }
+
+  authHandlers.clearAuthState();
+  if (typeof window !== "undefined") {
+    window.location.assign(getLoginRedirectUrl());
+  }
+}
+
 async function requestRefreshToken() {
   if (!authHandlers) {
     return false;
@@ -97,10 +108,7 @@ async function requestRefreshToken() {
   });
 
   if (!refreshResponse.ok) {
-    authHandlers.clearAuthState();
-    if (typeof window !== "undefined") {
-      window.location.assign(getLoginRedirectUrl());
-    }
+    forceLoginRedirect();
     return false;
   }
 
@@ -150,6 +158,10 @@ export async function apiRequest<T>(
     if (refreshSucceeded) {
       return apiRequest<T>(path, init, { ...options, retryOn401: false });
     }
+  }
+
+  if (response.status === 401 && auth) {
+    forceLoginRedirect();
   }
 
   if (!response.ok) {
