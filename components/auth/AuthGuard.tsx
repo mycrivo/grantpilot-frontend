@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 
@@ -13,17 +13,16 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (isAuthenticated) {
       return;
     }
 
-    const queryString = searchParams.toString();
-    const nextPath = queryString ? `${pathname}?${queryString}` : pathname;
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    const nextPath = `${pathname}${search}`;
     router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
-  }, [isAuthenticated, pathname, router, searchParams]);
+  }, [isAuthenticated, pathname, router]);
 
   if (!isAuthenticated) {
     return null;
