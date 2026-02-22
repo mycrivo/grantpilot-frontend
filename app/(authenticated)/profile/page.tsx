@@ -1,14 +1,21 @@
-export default function ProfilePage() {
+import { ProfileForm } from "@/components/profile/ProfileForm";
+
+type ProfilePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ProfilePage({ searchParams }: ProfilePageProps) {
+  const resolvedParams = (await searchParams) ?? {};
+  const from = Array.isArray(resolvedParams.from) ? resolvedParams.from[0] : resolvedParams.from;
+  const opportunity = Array.isArray(resolvedParams.opportunity_id)
+    ? resolvedParams.opportunity_id[0]
+    : resolvedParams.opportunity_id;
+
   return (
-    <section className="space-y-6">
-      <div className="card">
-        <h3>Profile</h3>
-        <p className="mt-2 text-secondary">
-          NGO profile form sections and completeness indicators will be implemented in
-          this area.
-        </p>
-      </div>
-    </section>
+    <ProfileForm
+      fromStart={from === "start"}
+      opportunityId={opportunity}
+    />
   );
 }
 
