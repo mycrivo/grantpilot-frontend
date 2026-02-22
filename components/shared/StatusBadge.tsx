@@ -2,6 +2,7 @@ type StatusTone = "success" | "warning" | "error" | "neutral";
 
 type StatusBadgeProps = {
   label: string;
+  status?: string;
   tone?: StatusTone;
 };
 
@@ -12,10 +13,18 @@ const toneClasses: Record<StatusTone, string> = {
   neutral: "bg-brand-neutral/10 text-brand-neutral border-brand-neutral/30",
 };
 
-export function StatusBadge({ label, tone = "neutral" }: StatusBadgeProps) {
+const statusToneMap: Record<string, StatusTone> = {
+  RECOMMENDED: "success",
+  APPLY_WITH_CAVEATS: "warning",
+  NOT_RECOMMENDED: "error",
+};
+
+export function StatusBadge({ label, status, tone }: StatusBadgeProps) {
+  const resolvedTone = tone ?? statusToneMap[status ?? label] ?? "neutral";
+
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-1 text-sm font-medium ${toneClasses[tone]}`}
+      className={`inline-flex items-center rounded-full border px-2 py-1 text-sm font-medium ${toneClasses[resolvedTone]}`}
     >
       {label}
     </span>
