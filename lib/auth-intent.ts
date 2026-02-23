@@ -45,6 +45,14 @@ export function getAndClearOpportunityIntent() {
   return value;
 }
 
+export function storeOpportunityIntent(opportunityId: string | null) {
+  if (!canUseStorage() || !opportunityId) {
+    return;
+  }
+
+  window.sessionStorage.setItem(OPPORTUNITY_INTENT_KEY, opportunityId);
+}
+
 export function getSafeNextFromQuery(nextValue: string | null) {
   if (!nextValue) {
     return null;

@@ -17,6 +17,7 @@ type FitScanResponse = {
   fit_scan: {
     id: string;
     funding_opportunity_id: string;
+    opportunity_title?: string | null;
     overall_recommendation: Recommendation;
     subscores?: {
       eligibility: number;
@@ -48,7 +49,7 @@ type EntitlementsResponse = {
 type ProposalCreateResponse = {
   id: string;
   funding_opportunity_id: string;
-  status: string;
+  status: "DRAFT" | "DEGRADED";
   created_at: string;
   generation_summary?: Record<string, unknown> | null;
 };
@@ -57,6 +58,13 @@ type QueryContext = {
   opportunityId: string;
   fitScanId: string;
   opportunityTitle?: string;
+};
+
+type FundingOpportunityResponse = {
+  funding_opportunity: {
+    title: string;
+    donor_organization: string;
+  };
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -118,6 +126,9 @@ export default function ProposalNewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [fitScan, setFitScan] = useState<FitScanResponse["fit_scan"] | null>(null);
+  const [opportunitySummary, setOpportunitySummary] = useState<FundingOpportunityResponse["funding_opportunity"] | null>(
+    null,
+  );
   const [plan, setPlan] = useState<Plan>("FREE");
   const [proposalRemaining, setProposalRemaining] = useState<number | null>(null);
   const [resetDate, setResetDate] = useState<string | undefined>(undefined);
@@ -158,11 +169,15 @@ export default function ProposalNewPage() {
       setPreflightError(null);
 
       try {
-        const [entitlementsResponse, fitScanResponse] = await Promise.all([
+        const [entitlementsResponse, fitScanResponse, opportunityResponse] = await Promise.all([
           apiRequest<EntitlementsResponse>("/api/me/entitlements", { method: "GET" }),
           apiRequest<FitScanResponse>(`/api/fit-scans/${encodeURIComponent(queryContext.fitScanId)}`, {
             method: "GET",
           }),
+          apiRequest<FundingOpportunityResponse>(
+            `/api/funding-opportunities/${encodeURIComponent(queryContext.opportunityId)}`,
+            { method: "GET" },
+          ),
         ]);
 
         if (!fitScanResponse?.fit_scan?.id) {
@@ -170,6 +185,7 @@ export default function ProposalNewPage() {
         }
 
         setFitScan(fitScanResponse.fit_scan);
+        setOpportunitySummary(opportunityResponse.funding_opportunity);
         setPlan(resolvePlan(entitlementsResponse.plan));
         setProposalRemaining(resolveProposalRemaining(entitlementsResponse));
         setResetDate(resolveResetDate(entitlementsResponse));
@@ -195,7 +211,11 @@ export default function ProposalNewPage() {
     return true;
   }, [freeConfirmed, plan]);
 
-  const titleLine = queryContext?.opportunityTitle ?? "Funding Opportunity";
+  const titleLine =
+    opportunitySummary?.title ??
+    fitScan?.opportunity_title?.trim() ??
+    queryContext?.opportunityTitle ??
+    "Funding Opportunity";
   const opportunityIdSuffix = queryContext ? shortOpportunityId(queryContext.opportunityId) : "";
   const proposalAllowed = proposalRemaining === null ? true : proposalRemaining > 0;
 
@@ -311,6 +331,9 @@ export default function ProposalNewPage() {
       <div className="card space-y-4">
         <div>
           <h4>{titleLine}</h4>
+          {opportunitySummary?.donor_organization ? (
+            <p className="mt-1 text-secondary">Donor: {opportunitySummary.donor_organization}</p>
+          ) : null}
           <p className="mt-1 text-secondary">Opportunity ID: ...{opportunityIdSuffix}</p>
         </div>
 

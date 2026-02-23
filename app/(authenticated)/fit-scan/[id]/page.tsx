@@ -18,6 +18,7 @@ type FitScanPayload = {
   fit_scan: {
     id: string;
     funding_opportunity_id: string;
+    opportunity_title?: string | null;
     overall_recommendation: Recommendation;
     model_rating?: string;
     subscores: {
@@ -166,6 +167,13 @@ export default function FitScanResultPage() {
 
   return (
     <section className="space-y-6">
+      <div className="card space-y-2">
+        <h3>Fit Scan Result</h3>
+        <p className="text-secondary">
+          Fit Scan for: {fitScan.opportunity_title?.trim() ? fitScan.opportunity_title : "Untitled opportunity"}
+        </p>
+      </div>
+
       <RecommendationBanner
         recommendation={fitScan.overall_recommendation}
         rationale={fitScan.primary_rationale}
