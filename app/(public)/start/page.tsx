@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
-import { QuotaGate } from "@/components/shared/QuotaGate";
+import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
+import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { storeOpportunityIntent } from "@/lib/auth-intent";
 
 type Plan = "FREE" | "GROWTH" | "IMPACT";
+type StartStep = "parse" | "auth" | "opportunity" | "completeness" | "quota" | "create_fit_scan";
 
 type FundingOpportunityResponse = {
   funding_opportunity: {
@@ -37,29 +39,50 @@ type EntitlementsResponse = {
 type FitScanCreateResponse = {
   fit_scan: {
     id: string;
-    funding_opportunity_id: string;
-    opportunity_title?: string | null;
   };
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function toDisplayDate(value: string | null) {
-  if (!value) {
-    return undefined;
+function isFundingOpportunityResponse(payload: unknown): payload is FundingOpportunityResponse {
+  if (!payload || typeof payload !== "object") {
+    return false;
   }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
+  const candidate = payload as Partial<FundingOpportunityResponse>;
+  const node = candidate.funding_opportunity;
+  if (!node || typeof node !== "object") {
+    return false;
   }
+  return (
+    typeof node.id === "string" &&
+    typeof node.title === "string" &&
+    typeof node.donor_organization === "string" &&
+    typeof node.is_active === "boolean"
+  );
+}
 
-  return date.toLocaleDateString();
+function loadingMessage(step: StartStep, title: string | null) {
+  if (step === "opportunity") {
+    return "Validating opportunity details...";
+  }
+  if (step === "completeness") {
+    return "Checking your profile completeness...";
+  }
+  if (step === "quota") {
+    return "Checking your Fit Scan quota...";
+  }
+  if (step === "create_fit_scan") {
+    return title ? `Checking your fit for ${title}...` : "Checking your fit...";
+  }
+  if (step === "auth") {
+    return "Redirecting you to login...";
+  }
+  return "Preparing your start flow...";
 }
 
 export default function StartPage() {
   return (
-    <Suspense fallback={<StartFallback />}>
+    <Suspense fallback={<StartLoading step="parse" title={null} />}>
       <StartPageClient />
     </Suspense>
   );
@@ -70,183 +93,212 @@ function StartPageClient() {
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuth();
 
-  const [loading, setLoading] = useState(true);
-  const [creatingFitScan, setCreatingFitScan] = useState(false);
-  const [error, setError] = useState<ApiClientError | null>(null);
-  const [friendlyError, setFriendlyError] = useState<string | null>(null);
-  const [opportunity, setOpportunity] = useState<FundingOpportunityResponse["funding_opportunity"] | null>(null);
-  const [plan, setPlan] = useState<Plan>("FREE");
-  const [fitScanAllowed, setFitScanAllowed] = useState(true);
-  const [fitScanResetDate, setFitScanResetDate] = useState<string | undefined>(undefined);
+  const [step, setStep] = useState<StartStep>("parse");
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
+  const [opportunityTitle, setOpportunityTitle] = useState<string | null>(null);
+  const [donorName, setDonorName] = useState<string | null>(null);
+  const [quotaBlocked, setQuotaBlocked] = useState(false);
+  const [plan, setPlan] = useState<Plan>("FREE");
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [invalidLink, setInvalidLink] = useState(false);
+  const [unavailableOpportunity, setUnavailableOpportunity] = useState(false);
+  const [fatalError, setFatalError] = useState<string | null>(null);
 
   useEffect(() => {
-    const rawOpportunityId = searchParams.get("opportunity_id");
-    if (!rawOpportunityId || !UUID_PATTERN.test(rawOpportunityId)) {
-      setFriendlyError("This link is invalid. Please return to NGOInfo.org and choose a valid opportunity.");
-      setLoading(false);
+    const raw = searchParams.get("opportunity_id");
+    if (!raw || !UUID_PATTERN.test(raw)) {
+      setInvalidLink(true);
+      setOpportunityId(null);
       return;
     }
-
-    setOpportunityId(rawOpportunityId);
+    setInvalidLink(false);
+    setOpportunityId(raw);
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!opportunityId || !isAuthenticated) {
+  const startFlow = useCallback(async () => {
+    if (!opportunityId) {
       return;
     }
 
-    const runStartFlow = async () => {
-      setLoading(true);
-      setError(null);
-      setFriendlyError(null);
+    setFatalError(null);
+    setUnavailableOpportunity(false);
+    setQuotaBlocked(false);
+    setStep("opportunity");
 
+    try {
+      const opportunityPayload = await apiRequest<unknown>(
+        `/api/funding-opportunities/${encodeURIComponent(opportunityId)}`,
+        { method: "GET" },
+      );
+
+      if (!isFundingOpportunityResponse(opportunityPayload)) {
+        throw new ApiClientError(
+          500,
+          "STOP: GET /api/funding-opportunities/{id} returned an unexpected response shape.",
+        );
+      }
+
+      if (!opportunityPayload.funding_opportunity.is_active) {
+        setUnavailableOpportunity(true);
+        return;
+      }
+
+      setOpportunityTitle(opportunityPayload.funding_opportunity.title);
+      setDonorName(opportunityPayload.funding_opportunity.donor_organization);
+
+      setStep("completeness");
+      const completeness = await apiRequest<NgoProfileCompleteness>("/api/ngo-profile/completeness", { method: "GET" });
+      if (completeness.status === "MISSING" || completeness.status === "DRAFT") {
+        router.replace(
+          `/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId)}&message=${encodeURIComponent(
+            "Complete your profile to run your Fit Scan.",
+          )}`,
+        );
+        return;
+      }
+
+      setStep("quota");
+      const entitlements = await apiRequest<EntitlementsResponse>("/api/me/entitlements", { method: "GET" });
+      setPlan(entitlements.plan);
+      if (entitlements.entitlements.fit_scans.remaining <= 0) {
+        setQuotaBlocked(true);
+        return;
+      }
+
+      setStep("create_fit_scan");
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 30000);
       try {
-        const [opportunityResponse, completeness, entitlements] = await Promise.all([
-          apiRequest<FundingOpportunityResponse>(`/api/funding-opportunities/${encodeURIComponent(opportunityId)}`, {
-            method: "GET",
-          }),
-          apiRequest<NgoProfileCompleteness>("/api/ngo-profile/completeness", { method: "GET" }),
-          apiRequest<EntitlementsResponse>("/api/me/entitlements", { method: "GET" }),
-        ]);
-
-        const opportunityPayload = opportunityResponse.funding_opportunity;
-        setOpportunity(opportunityPayload);
-
-        if (!opportunityPayload.is_active) {
-          setFriendlyError("This opportunity is no longer active. Explore other opportunities on NGOInfo.org.");
+        const fitScan = await apiRequest<FitScanCreateResponse>(
+          "/api/fit-scans",
+          {
+            method: "POST",
+            body: JSON.stringify({ funding_opportunity_id: opportunityId }),
+            signal: controller.signal,
+          },
+          { auth: true, retryOn401: true },
+        );
+        router.replace(`/fit-scan/${encodeURIComponent(fitScan.fit_scan.id)}`);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          setFatalError("Something went wrong. Please try again.");
           return;
         }
-
-        if (completeness.status !== "COMPLETE") {
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        if (error.status === 404 && error.errorCode === "OPPORTUNITY_NOT_FOUND") {
+          setUnavailableOpportunity(true);
+          return;
+        }
+        if (error.status === 409 && error.errorCode === "PROFILE_INCOMPLETE") {
           router.replace(`/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId)}`);
           return;
         }
-
-        setPlan(entitlements.plan);
-        setFitScanAllowed(entitlements.entitlements.fit_scans.remaining > 0);
-        setFitScanResetDate(toDisplayDate(entitlements.entitlements.fit_scans.reset_at));
-
-        if (entitlements.entitlements.fit_scans.remaining <= 0) {
+        if (error.status === 429 && error.errorCode === "QUOTA_EXCEEDED") {
+          setQuotaBlocked(true);
           return;
         }
-
-        setCreatingFitScan(true);
-        const fitScanResponse = await apiRequest<FitScanCreateResponse>("/api/fit-scans", {
-          method: "POST",
-          body: JSON.stringify({ funding_opportunity_id: opportunityId }),
-        });
-
-        router.replace(`/fit-scan/${encodeURIComponent(fitScanResponse.fit_scan.id)}`);
-      } catch (caughtError) {
-        if (caughtError instanceof ApiClientError) {
-          if (caughtError.status === 404 && caughtError.errorCode === "OPPORTUNITY_NOT_FOUND") {
-            setFriendlyError("We couldn't find that opportunity. Please return to NGOInfo.org and try another link.");
-          } else {
-            setError(caughtError);
-          }
-          return;
-        }
-
-        setError(new ApiClientError(500, "We couldn't start your fit check right now."));
-      } finally {
-        setCreatingFitScan(false);
-        setLoading(false);
       }
-    };
-
-    void runStartFlow();
-  }, [isAuthenticated, opportunityId, router]);
+      setFatalError("Something went wrong. Please try again.");
+    }
+  }, [opportunityId, router]);
 
   useEffect(() => {
-    if (!opportunityId || isAuthenticated) {
+    if (invalidLink || !opportunityId) {
       return;
     }
-
-    storeOpportunityIntent(opportunityId);
-    const nextPath = `/start?opportunity_id=${encodeURIComponent(opportunityId)}`;
-    router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
-  }, [isAuthenticated, opportunityId, router]);
-
-  const titleText = useMemo(() => {
-    if (!opportunity) {
-      return "Validating opportunity...";
+    if (!isAuthenticated) {
+      setStep("auth");
+      storeOpportunityIntent(opportunityId);
+      router.replace(`/login?next=${encodeURIComponent(`/start?opportunity_id=${opportunityId}`)}`);
+      return;
     }
-    return opportunity.title;
-  }, [opportunity]);
+    void startFlow();
+  }, [invalidLink, isAuthenticated, opportunityId, retryNonce, router, startFlow]);
 
-  if (loading || creatingFitScan) {
+  const headerContext = useMemo(() => {
+    if (!opportunityTitle || !donorName) {
+      return null;
+    }
+    return `${opportunityTitle} — ${donorName}`;
+  }, [donorName, opportunityTitle]);
+
+  if (invalidLink) {
     return (
       <section className="space-y-6">
-        <div className="card space-y-2">
-          <h3>Checking your fit...</h3>
-          <p className="text-secondary">
-            {creatingFitScan
-              ? "Running your Fit Scan now. This can take up to 30 seconds."
-              : "Validating opportunity context and profile readiness."}
+        <ErrorDisplay message="This opportunity link is invalid. Browse opportunities on NGOInfo.org." />
+        <a href="https://ngoinfo.org" target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center">
+          Browse opportunities on NGOInfo.org
+        </a>
+      </section>
+    );
+  }
+
+  if (unavailableOpportunity) {
+    return (
+      <section className="space-y-6">
+        <HeaderCard context={headerContext} />
+        <ErrorDisplay message="This opportunity is no longer available." />
+        <a href="https://ngoinfo.org" target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center">
+          Browse opportunities on NGOInfo.org
+        </a>
+      </section>
+    );
+  }
+
+  if (quotaBlocked) {
+    return (
+      <section className="space-y-6">
+        <HeaderCard context={headerContext} />
+        <div className="card border-brand-warning/30 bg-brand-warning/5">
+          <h4>Fit Scan quota reached</h4>
+          <p className="mt-2 text-secondary">
+            You have no Fit Scans remaining on your {plan} plan right now. Upgrade to continue.
           </p>
+          <Link href="/billing" className="btn-primary mt-4 inline-flex items-center">
+            View plans and billing
+          </Link>
         </div>
       </section>
     );
   }
 
+  if (fatalError) {
+    return (
+      <section className="space-y-6">
+        <HeaderCard context={headerContext} />
+        <ErrorDisplay message={fatalError} />
+        <button type="button" className="btn-primary inline-flex items-center" onClick={() => setRetryNonce((v) => v + 1)}>
+          Retry
+        </button>
+      </section>
+    );
+  }
+
+  return <StartLoading step={step} title={opportunityTitle} context={headerContext} />;
+}
+
+function HeaderCard({ context }: { context?: string | null }) {
   return (
-    <section className="space-y-6">
-      <div className="card space-y-2">
-        <h3>Start Fit Check</h3>
-        <p className="text-secondary">{titleText}</p>
-        {opportunity?.donor_organization ? (
-          <p className="text-sm text-brand-text-secondary">Donor: {opportunity.donor_organization}</p>
-        ) : null}
-      </div>
-
-      {friendlyError ? (
-        <div className="card border-brand-warning/30 bg-brand-warning/5">
-          <p className="text-brand-text-primary">{friendlyError}</p>
-          <a
-            className="mt-3 inline-flex items-center text-sm font-semibold text-brand-primary hover:underline"
-            href="https://ngoinfo.org"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Browse opportunities on NGOInfo.org
-          </a>
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="card border-brand-error/30 bg-brand-error/5">
-          <p className="text-brand-text-primary">{error.message}</p>
-        </div>
-      ) : null}
-
-      {!friendlyError && !error ? (
-        <QuotaGate
-          action="FIT_SCAN"
-          plan={plan}
-          isAllowed={fitScanAllowed}
-          resetDate={fitScanResetDate}
-          onUpgrade={() => router.push("/billing")}
-        >
-          <div className="card">
-            <p className="text-secondary">Fit scan in progress...</p>
-          </div>
-        </QuotaGate>
-      ) : null}
-
-      <Link href="/dashboard" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
-        Back to Dashboard
-      </Link>
-    </section>
+    <div className="card">
+      <h3>Start Fit Check</h3>
+      {context ? <p className="mt-2 text-secondary">{context}</p> : null}
+    </div>
   );
 }
 
-function StartFallback() {
+function StartLoading({ step, title, context }: { step: StartStep; title: string | null; context?: string | null }) {
   return (
     <section className="space-y-6">
-      <div className="card space-y-2">
-        <h3>Start Fit Check</h3>
-        <p className="text-secondary">Loading opportunity context...</p>
+      <HeaderCard context={context} />
+      <LoadingSkeleton lines={3} />
+      <div className="card">
+        <p className="text-secondary">{loadingMessage(step, title)}</p>
       </div>
     </section>
   );
