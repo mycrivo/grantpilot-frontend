@@ -1,12 +1,11 @@
 # frontend_dev.md
 
-**Location:** `/docs/frontend_dev.md`  
-**Scope:** Frontend development execution plan for GrantPilot UI on `https://grantpilot.ngoinfo.org`  
+**Scope:** Frontend development execution plan for GrantPilot UI on `https://grantpilot.ngoinfo.org`
 **Canonical authorities (do not override):**
 - `FRONTEND_ARCHITECTURE_SPEC.md`
 - `LAUNCH_JOURNEYS_SPEC.md`
 - `BRAND_AND_FRONTEND_SPEC.md`
-- `API_CONTRACT.md`
+- `API_CONTRACT.md` (single source of truth — one file shared across backend and frontend)
 - `GUARDRAILS_RUNTIME_AND_SECURITY.md`
 
 ---
@@ -93,14 +92,15 @@ Steps are grouped into phases. Complete each phase before starting the next.
 
 ### Phase A — Foundation (auth + shell + shared primitives)
 
-**A-1: Auth flows end-to-end**  
-_Scope:_ `/login`, `/auth/callback`, `/auth/magic-link` pages + `AuthProvider` context  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Sections 3.1–3.3, 4.1  
-_Depends on:_ Pre-work complete, backend auth endpoints live  
+**A-1: Auth flows end-to-end**
+_Scope:_ `/login`, `/auth/callback`, `/auth/magic-link` pages + `AuthProvider` context
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Sections 3.1–3.3, 4.1
+_Depends on:_ Pre-work complete, backend auth endpoints live
 _Key behaviours:_
 - Google OAuth button initiates `GET /api/auth/google/start` → redirect → code exchange at `/auth/callback`
 - Magic link form calls `POST /api/auth/magic-link/request` → confirmation message → `/auth/magic-link?token=...` consumes token
 - On success: tokens stored in AuthProvider context (React state, not localStorage)
+- Token response shape (from `API_CONTRACT.md` Section 3.3): `{ access_token, refresh_token, token_type, expires_in, user: { id, email, full_name, plan } }` — store `user` in context alongside tokens for plan-aware UI rendering
 - Redirect intent (`?next=` or sessionStorage) preserved through OAuth redirect and restored post-auth
 - Logout clears context and redirects to `/login`
 
@@ -108,10 +108,10 @@ _Exit check:_ Both auth paths complete without console errors; post-login redire
 
 ---
 
-**A-2: Authenticated shell + navigation**  
-_Scope:_ Authenticated layout (`(authenticated)/layout.tsx`), `AuthGuard`, minimal nav  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3, AuthGuard pattern  
-_Depends on:_ A-1  
+**A-2: Authenticated shell + navigation**
+_Scope:_ Authenticated layout (`(authenticated)/layout.tsx`), `AuthGuard`, minimal nav
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3, AuthGuard pattern
+_Depends on:_ A-1
 _Key behaviours:_
 - All routes under `(authenticated)/` redirect unauthenticated users to `/login?next={current_path}`
 - Nav items: Dashboard · Profile · Billing (links only; pages built in later steps)
@@ -121,14 +121,14 @@ _Exit check:_ Direct URL access to `/dashboard` while logged out redirects corre
 
 ---
 
-**A-3: Shared UX primitives + QuotaGate**  
-_Scope:_ `ErrorDisplay`, `LoadingSkeleton`, `StatusBadge`, `QuotaGate` components  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 4, Section 5 (quota messaging table)  
-_Depends on:_ A-2  
+**A-3: Shared UX primitives + QuotaGate**
+_Scope:_ `ErrorDisplay`, `LoadingSkeleton`, `StatusBadge`, `QuotaGate` components
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 4, Section 5 (quota messaging table)
+_Depends on:_ A-2
 _Key behaviours:_
-- `ErrorDisplay`: standard non-blaming error UI, extracts `error_code` + `message` from API error envelope; never shows raw stack or technical jargon
+- `ErrorDisplay`: standard non-blaming error UI, extracts `error_code` + `message` from API error envelope (see `API_CONTRACT.md` Section 1); never shows raw stack or technical jargon
 - `LoadingSkeleton`: grey placeholder blocks matching expected page layout
-- `StatusBadge`: coloured pill for proposal/fit scan statuses as defined in `ENUM_REGISTRY.md`
+- `StatusBadge`: coloured pill for statuses. Proposal statuses are: `DRAFT` (green/complete), `DEGRADED` (amber/warning). Fit Scan recommendations: `RECOMMENDED` (green), `APPLY_WITH_CAVEATS` (amber), `NOT_RECOMMENDED` (red/soft). Section statuses: `GENERATED` (green), `FAILED` (red), `MANUAL_REQUIRED` (grey).
 - `QuotaGate`: wraps any gated CTA; receives entitlements via props (fetched by parent); renders children if quota available, renders plan-appropriate upgrade CTA if exhausted — messaging per `FRONTEND_ARCHITECTURE_SPEC.md` Section 5 quota tables
 - **QuotaGate never calls the backend itself.** It renders based on entitlements passed to it from the page.
 - 429 response from API client: display "You've hit a rate limit. Please wait a moment and try again."
@@ -140,10 +140,10 @@ _Exit check:_ Manually trigger each error state by mocking API responses; upgrad
 
 ### Phase B — Core acquisition funnel
 
-**B-1: NGO Profile page (create + update + completeness bar)**  
-_Scope:_ `/profile` page + `ProfileForm`, `CompletenessBar`, `PastProjectCard`, `TagInput` components  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.6  
-_Depends on:_ A-3  
+**B-1: NGO Profile page (create + update + completeness bar)**
+_Scope:_ `/profile` page + `ProfileForm`, `CompletenessBar`, `PastProjectCard`, `TagInput` components
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.6
+_Depends on:_ A-3
 _Key behaviours:_
 - On load: `GET /api/ngo-profile` — if 404 (no profile yet), render empty form
 - Save: `POST` (create) or `PUT` (update) depending on whether profile exists
@@ -156,13 +156,13 @@ _Exit check:_ Create profile from scratch; update profile; completeness bar upda
 
 ---
 
-**B-2: `/start` handoff + Fit Scan initiation**  
-_Scope:_ `/start` page (public route), fit scan initiation state machine  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.4, `LAUNCH_JOURNEYS_SPEC.md` J1  
-_Depends on:_ B-1  
+**B-2: `/start` handoff + Fit Scan initiation**
+_Scope:_ `/start` page (public route), fit scan initiation state machine
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.4, `LAUNCH_JOURNEYS_SPEC.md` J1
+_Depends on:_ B-1
 _Key behaviours:_
 - Accepts `?opportunity_id={uuid}` from WordPress CTA link
-- Validates `opportunity_id` against backend (invalid/expired → friendly message + link to NGOInfo.org browse page)
+- **Opportunity validation:** Call `GET /api/funding-opportunities/{opportunity_id}` (see `API_CONTRACT.md` Section 7.1) to validate the opportunity exists and is active. If 404 or `is_active=false` → friendly message + link to NGOInfo.org browse page. Use the response's `title` and `donor_organization` to display the opportunity header context throughout the flow.
 - Stores `opportunity_id` in sessionStorage before auth redirect (survives OAuth)
 - Post-auth: restores `opportunity_id` from sessionStorage
 - Profile completeness check: `GET /api/ngo-profile/completeness` — if incomplete, redirect to `/profile?from=start&opportunity_id={id}` with contextual message
@@ -174,12 +174,13 @@ _Exit check:_ Full J1 flow from a simulated WordPress deep link: invalid ID → 
 
 ---
 
-**B-3: Fit Scan result page**  
-_Scope:_ `/fit-scan/[id]` page + `RecommendationBanner`, `ScoreBar`, `RiskFlagList` components  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.5, `LAUNCH_JOURNEYS_SPEC.md` J1 outcomes  
-_Depends on:_ B-2  
+**B-3: Fit Scan result page**
+_Scope:_ `/fit-scan/[id]` page + `RecommendationBanner`, `ScoreBar`, `RiskFlagList` components
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.5, `LAUNCH_JOURNEYS_SPEC.md` J1 outcomes
+_Depends on:_ B-2
 _Key behaviours:_
 - `GET /api/fit-scans/{id}` on load; show skeleton while loading
+- Display `opportunity_title` from response as page header context (e.g., "Fit Scan for: {opportunity_title}")
 - Recommendation banner: green (RECOMMENDED), amber (APPLY_WITH_CAVEATS), red/soft (NOT_RECOMMENDED)
 - Score bars: visual progress bars (0–100) with colour thresholds — green ≥70, amber 40–69, red <40
 - Risk flags: severity icon + description from API response; HIGH = red, MEDIUM = amber, LOW = grey
@@ -194,13 +195,13 @@ _Exit check:_ Verify all three recommendation outcomes render correctly; score b
 
 ### Phase C — Value delivery (proposals)
 
-**C-1: Proposal generation page**  
-_Scope:_ `/proposal/new` page + `GenerationProgress` component  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.7, `LAUNCH_JOURNEYS_SPEC.md` J2, J3, J4  
-_Depends on:_ B-3  
+**C-1: Proposal generation page**
+_Scope:_ `/proposal/new` page + `GenerationProgress` component
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.7, `LAUNCH_JOURNEYS_SPEC.md` J2, J3, J4
+_Depends on:_ B-3
 _Key behaviours:_
 - URL: `/proposal/new?opportunity_id={uuid}&fit_scan_id={uuid}`
-- Pre-flight: verify auth + show opportunity title and fit scan summary card
+- Pre-flight: verify auth + show opportunity title (from `GET /api/funding-opportunities/{id}` or from fit scan response if cached in state) and fit scan summary card
 - Free plan: show one-time evaluation notice explicitly before user can proceed: "This is your one-time evaluation proposal." + confirm button
 - Quota check via entitlements: if exhausted, show QuotaGate instead of generate button
 - On user confirmation: `POST /api/proposals { funding_opportunity_id, fit_scan_id }`
@@ -212,53 +213,58 @@ _Exit check:_ Free user confirmation flow; generation loading renders; success r
 
 ---
 
-**C-2: Proposal viewer + export**  
-_Scope:_ `/proposal/[id]` page + `SectionNav`, `SectionContent`, `AssumptionsList`, `GenerationProgress` (reused for per-section status)  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Sections 3.8–3.9, `LAUNCH_JOURNEYS_SPEC.md` J5, J6  
-_Depends on:_ C-1  
+**C-2: Proposal viewer + export**
+_Scope:_ `/proposal/[id]` page + `SectionNav`, `SectionContent`, `AssumptionsList`, `GenerationProgress` (reused for per-section status)
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Sections 3.8–3.9, `LAUNCH_JOURNEYS_SPEC.md` J5, J6
+_Depends on:_ C-1
 _Key behaviours:_
 - `GET /api/proposals/{id}` on load; skeleton while loading
-- Section nav: sidebar or tabs showing each proposal section with its status badge (DRAFT, GENERATING, FAILED, etc.)
-- Section content: render per-section text; FAILED sections show inline retry option
-- Assumptions list: display clearly labelled assumptions from API response
-- Regeneration (basic): "Regenerate section" button per section; calls `POST /api/proposals/{id}/regenerate { section }` — show spinner on button; update section on success; show error on failure; show "regenerations remaining" count for Growth/Impact
+- Display `opportunity_title` from response as page header context
+- **Section rendering from `content_json.sections[]`** (see `API_CONTRACT.md` Section 9.2 for full typed schema):
+  - Section nav: sidebar or tabs showing each section's `label` with its status badge based on `generation_status`: `GENERATED` (green), `FAILED` (red), `MANUAL_REQUIRED` (grey)
+  - `GENERATED` sections: render `content.text` with section heading from `label`; show `content.assumptions` in a clearly labelled "Assumptions" panel; show `content.evidence_used` if non-empty
+  - `FAILED` sections: show "This section could not be generated." with retry option (triggers full regeneration — see below)
+  - `MANUAL_REQUIRED` sections: show "This section requires manual input. AI generation is not available for this item." — no retry button
+  - If `constraints_applied.word_limit` is present, show subtle note: "Word limit: {word_limit}" with indicator of whether it was respected
+- **Regeneration (MVP — full proposal only):** Single "Regenerate Proposal" button (NOT per-section buttons). Calls `POST /api/proposals/{id}/regenerate` with body `{ "mode": "FULL" }`. This re-runs ALL `GENERATED` and `FAILED` sections; `MANUAL_REQUIRED` sections stay as-is. Show spinner; on success, reload proposal detail; on failure, show error. Display "Regenerations remaining: {3 - regeneration_count}" for Growth/Impact.
   - Free plan: "Regeneration isn't available on the Free plan" with upgrade CTA (no button shown)
-  - Limit reached: "You've used all regenerations for this proposal" (no button shown)
-- Export: "Export Proposal" button → readiness check modal (lists any missing sections or weak assumptions as warnings, not blockers) → user confirms → `POST /api/proposals/{id}/export` → trigger DOCX download; multiple downloads of same version do not re-consume quota (per J6)
-- "Evaluation Copy" watermark label for Free plan proposals
+  - Limit reached (`regeneration_count >= 3`): "You've used all regenerations for this proposal" (no button shown)
+- **Export:** "Export Proposal" button → readiness check modal (lists any `FAILED` or `MANUAL_REQUIRED` sections as warnings, not blockers) → user confirms → `POST /api/proposals/{id}/export { "format": "DOCX" }` → trigger DOCX download via blob URL; multiple downloads of same version do not re-consume quota (per J6)
+- "Evaluation Copy" watermark label for Free plan proposals (check `user.plan` from AuthProvider context)
 
-_Exit check:_ Proposal loads with correct sections; failed section retry works; export downloads a valid DOCX; regeneration limits enforce correctly per plan; Free plan regen blocked correctly
+_Exit check:_ Proposal loads with correct sections rendered by `generation_status`; FAILED section shows correctly; regeneration fires and updates content; export downloads a valid DOCX; regeneration limits enforce correctly per plan; Free plan regen blocked correctly
 
 ---
 
 ### Phase D — Home base
 
-**D-1: Dashboard**  
-_Scope:_ `/dashboard` page + `QuotaOverview`, `FitScanList`, `ProposalList` components  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.11  
-_Depends on:_ A-3, B-1, C-2  
+**D-1: Dashboard**
+_Scope:_ `/dashboard` page + `QuotaOverview`, `FitScanList`, `ProposalList` components
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.11
+_Depends on:_ A-3, B-1, C-2
 _Key behaviours:_
 - Parallel API calls on load: `GET /api/me/entitlements`, `GET /api/ngo-profile/completeness`, `GET /api/fit-scans`, `GET /api/proposals`
 - Quota overview: Fit Scans used / limit + Proposals used / limit + reset date (paid) or upgrade CTA (Free near limit)
 - Profile completeness snapshot: bar with percentage + "Complete your profile →" link if incomplete
-- Recent Fit Scans: last 5, each linking to `/fit-scan/{id}`; empty state: "No fit scans yet. Start by checking fit for a funding opportunity on NGOInfo.org →"
-- Recent Proposals: last 5, each linking to `/proposal/{id}`; empty state: "No proposals yet."
+- **Recent Fit Scans:** last 5 from `GET /api/fit-scans?limit=5`. Each item shows `opportunity_title` (or "Untitled opportunity" fallback if null), `overall_recommendation` as a coloured badge, and `created_at` as relative time. Each links to `/fit-scan/{id}`. Empty state: "No fit scans yet. Start by checking fit for a funding opportunity on NGOInfo.org →"
+- **Recent Proposals:** last 5 from `GET /api/proposals?limit=5`. Each item shows `opportunity_title` (or "Untitled opportunity" fallback), `status` badge, `generation_summary` as "{generated}/{total_items} sections generated", and `created_at` as relative time. Each links to `/proposal/{id}`. Empty state: "No proposals yet."
 - Post-login landing page (redirect here after auth if no `?next=` intent)
+- **MVP note:** No pagination UI. List endpoints return the most recent items only (no offset/cursor support).
 
-_Exit check:_ Dashboard loads all data concurrently; empty states render correctly for new users; links navigate correctly
+_Exit check:_ Dashboard loads all data concurrently; empty states render correctly for new users; links navigate correctly; list items display opportunity_title
 
 ---
 
 ### Phase E — Monetisation entry points
 
-**E-1: Billing page + checkout + success/cancel**  
-_Scope:_ `/billing` page, `/billing/success`, `/billing/cancel` pages  
-_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.10  
-_Depends on:_ A-2  
+**E-1: Billing page + checkout + success/cancel**
+_Scope:_ `/billing` page, `/billing/success`, `/billing/cancel` pages
+_Spec authority:_ `FRONTEND_ARCHITECTURE_SPEC.md` Section 3.10
+_Depends on:_ A-2
 _Key behaviours:_
 - `/billing`: `GET /api/me/entitlements` on load → show current plan and quota summary
-  - Free plan: plan comparison (Growth vs Impact) + upgrade CTAs → `POST /api/billing/checkout { plan }` → redirect to Stripe Checkout
-  - Paid plans: show active plan details + "Manage Billing →" → `GET /api/billing/portal` → open Stripe Customer Portal in new tab (Stripe handles all billing history, invoice download, payment method updates, cancellation)
+  - Free plan: plan comparison (Growth $39/mo vs Impact $79/mo) + upgrade CTAs → `POST /api/billing/checkout { "plan": "GROWTH" }` or `{ "plan": "IMPACT" }` → receive `{ checkout_url }` → redirect to Stripe Checkout via `window.location.href`
+  - Paid plans: show active plan details + "Manage Billing →" → `GET /api/billing/portal` → receive `{ portal_url }` → open in new tab (Stripe handles all billing history, invoice download, payment method updates, cancellation)
 - `/billing/success`: confirm plan upgrade with friendly message + "Go to Dashboard →" link
 - `/billing/cancel`: "No worries" message + return to Dashboard + gentle reminder of plan options
 
@@ -268,8 +274,8 @@ _Exit check:_ Checkout redirect fires correctly in Stripe test mode; success and
 
 ### Phase F — Pre-launch validation
 
-**F-1: End-to-end smoke test (checklist, not a deploy)**  
-_Spec authority:_ `LAUNCH_JOURNEYS_SPEC.md` J1–J6  
+**F-1: End-to-end smoke test (checklist, not a deploy)**
+_Spec authority:_ `LAUNCH_JOURNEYS_SPEC.md` J1–J6
 
 Run this matrix before declaring launch-ready:
 
@@ -311,11 +317,28 @@ Key shared components and their ownership:
 
 The API client (`lib/api-client.ts`) must:
 - Attach `Authorization: Bearer {access_token}` from AuthProvider context on every authenticated request
-- On 401: attempt one silent token refresh via `/api/auth/refresh`; if refresh fails, redirect to `/login?next={current_path}`
+- On 401: attempt one silent token refresh via `POST /api/auth/refresh`; if refresh fails, redirect to `/login?next={current_path}`
 - On 429: surface to UI as rate limit message (do not retry automatically)
 - On 5xx: surface to UI as temporary error message
-- Parse error responses using `error_code` + `message` fields from API error envelope per `API_CONTRACT.md`
+- Parse error responses using `error_code` + `message` fields from API error envelope per `API_CONTRACT.md` Section 1
 - Never log tokens to console
+- For binary responses (DOCX export): handle `Content-Type: application/vnd.openxmlformats...` by creating a blob URL and triggering download, NOT by parsing as JSON
+
+---
+
+## Key API response shapes (quick reference for Cursor)
+
+These are summaries — `API_CONTRACT.md` is the full authority.
+
+**Proposal statuses:** `DRAFT` (generation complete, usable), `DEGRADED` (generated with missing inputs, placeholders used). There is no `GENERATING` status — generation is synchronous.
+
+**Section generation_status values:** `GENERATED`, `FAILED`, `MANUAL_REQUIRED`.
+
+**Fit Scan recommendations:** `RECOMMENDED`, `APPLY_WITH_CAVEATS`, `NOT_RECOMMENDED`.
+
+**Fit Scan model ratings:** `STRONG`, `MODERATE`, `WEAK`.
+
+**Plan values:** `FREE`, `GROWTH`, `IMPACT`.
 
 ---
 
@@ -328,6 +351,8 @@ The API client (`lib/api-client.ts`) must:
 - Do not add any Stripe secret keys, OpenAI keys, or DB credentials to frontend env vars.
 - Do not build the Stripe customer portal UI — link to `GET /api/billing/portal` which redirects to Stripe's hosted portal.
 - Do not build mobile-responsive layouts for MVP — desktop-first is acceptable at launch.
+- Do not implement per-section regeneration — MVP is `{ "mode": "FULL" }` only. Do not send `{ "section": "..." }` to the regenerate endpoint.
+- Do not build pagination UI for dashboard lists — MVP returns last 5 items via `?limit=5`, no offset/cursor.
 
 ---
 
@@ -336,11 +361,13 @@ The API client (`lib/api-client.ts`) must:
 | Feature | Decision | Rationale |
 |---------|----------|-----------|
 | Stripe billing history / invoice UI | Deferred — link to Stripe portal | Not our UI to build; Stripe hosts it |
-| Proposal regeneration full UX polish | Basic button ships; polish deferred | Regen is secondary to generation at launch |
+| Proposal regeneration full UX polish | Basic "Regenerate Proposal" button ships (full-proposal only); per-section regen deferred | Regen is secondary to generation at launch |
 | Dashboard pagination | Deferred — last 5 items only | Simplest implementation; sufficient for launch |
 | Mobile responsive design | Deferred | Users in 48hr window are likely desktop NGO staff |
 | Frontend unit tests | Deferred | Smoke tests against production are the launch gate |
 | WCAG accessibility audit | Deferred | Baseline accessibility only for MVP |
 | Profile upload (prior proposals/docs) | Deferred (explicitly post-MVP) | Per `LAUNCH_JOURNEYS_SPEC.md` J4 post-MVP note |
+| Per-section regeneration | Deferred — FULL regen only for MVP | Backend only supports `{ "mode": "FULL" }` |
+| Funding amount display on opportunity | Deferred | Not in MVP opportunity endpoint response |
 
 ---
