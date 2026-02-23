@@ -498,6 +498,19 @@ GET /api/proposals/{id} (retrieve)
 POST /api/proposals/{id}/regenerate (regenerate)
 POST /api/proposals/{id}/export (DOCX export)
 
+`POST /api/proposals` Response 200:
+{
+  "id": "uuid",
+  "funding_opportunity_id": "uuid",
+  "status": "string",
+  "created_at": "ISO-8601 timestamp",
+  "generation_summary": "object or null"
+}
+
+Notes:
+- `id` is top-level and is the canonical proposal id for redirect to `/proposal/{id}`.
+- Opportunity title is not currently returned by proposal or fit-scan endpoints. Frontend may optionally display `opportunity_title` from query params when provided, otherwise use a fallback label plus opportunity id context.
+
 `POST /api/proposals` degraded behavior:
 - If `requirements_json` is missing/invalid, return a degraded proposal payload (not 422)
 - Degraded payload must use safe placeholders only (no hallucinated requirements)
