@@ -4,12 +4,12 @@ export default function BillingSuccessPage() {
   return (
     <section className="mx-auto max-w-2xl">
       <div className="card">
-        <h3>Subscription activated</h3>
+        <h3>You&apos;re all set!</h3>
         <p className="mt-2 text-secondary">
-          Your plan is active. You can now continue in your dashboard.
+          Your plan has been upgraded.
         </p>
         <Link href="/dashboard" className="btn-primary mt-6 inline-flex items-center">
-          Go to Dashboard
+          Go to Dashboard \u2192
         </Link>
       </div>
     </section>
