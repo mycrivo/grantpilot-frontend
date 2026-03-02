@@ -36,6 +36,7 @@ export class ApiClientError extends Error {
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+const REFRESH_TOKEN_STORAGE_KEY = "gp_refresh_token";
 
 let authHandlers: AuthSessionHandlers | null = null;
 
@@ -85,6 +86,10 @@ function forceLoginRedirect() {
     return;
   }
 
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  }
+
   authHandlers.clearAuthState();
   if (typeof window !== "undefined") {
     window.location.assign(getLoginRedirectUrl());
@@ -98,6 +103,9 @@ async function requestRefreshToken() {
 
   const refreshToken = authHandlers.getRefreshToken();
   if (!refreshToken) {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    }
     return false;
   }
 
