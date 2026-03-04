@@ -167,11 +167,17 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
           }
         }
 
-        const completenessResponse = await getNgoProfileCompleteness();
         setProfile(loadedProfile);
         setProfileExists(exists);
-        setCompleteness(completenessResponse);
         syncedSnapshot.current = snapshot(loadedProfile);
+
+        // Completeness is secondary; profile editing should still work if this call fails.
+        try {
+          const completenessResponse = await getNgoProfileCompleteness();
+          setCompleteness(completenessResponse);
+        } catch {
+          setCompleteness(null);
+        }
       } catch (loadError) {
         if (loadError instanceof ApiClientError) {
           setError(loadError);
@@ -241,7 +247,6 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         ? await updateNgoProfile(payload)
         : await createNgoProfile(payload);
 
-      const nextCompleteness = await getNgoProfileCompleteness();
       const nextProfile: NgoProfile = {
         ...response.ngo_profile,
         past_projects:
@@ -252,11 +257,18 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
       setProfile(nextProfile);
       setProfileExists(true);
-      setCompleteness(nextCompleteness);
       syncedSnapshot.current = snapshot(nextProfile);
       setSavedMessage("Profile saved.");
 
-      if (fromStart && opportunityId && nextCompleteness.status === "COMPLETE") {
+      let nextCompleteness: NgoProfileCompleteness | null = null;
+      try {
+        nextCompleteness = await getNgoProfileCompleteness();
+        setCompleteness(nextCompleteness);
+      } catch {
+        // Save has already succeeded; keep UI stable if completeness refresh fails.
+      }
+
+      if (fromStart && opportunityId && nextCompleteness?.status === "COMPLETE") {
         setRedirecting(true);
         setSavedMessage("Profile complete — checking your fit now…");
         window.setTimeout(() => {
