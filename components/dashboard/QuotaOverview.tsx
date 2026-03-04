@@ -3,8 +3,7 @@
 import Link from "next/link";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
-
-type Plan = "FREE" | "GROWTH" | "IMPACT";
+import { PLAN_DETAILS, type Plan } from "@/lib/plans";
 
 type QuotaBlock = {
   limit: number;
@@ -53,7 +52,7 @@ function relativeResetLabel(resetAt: string | null) {
 }
 
 function PlanBadge({ plan }: { plan: Plan }) {
-  const label = plan === "FREE" ? "Free Plan" : plan === "GROWTH" ? "Growth Plan" : "Impact Plan";
+  const label = plan === "FREE" ? PLAN_DETAILS.FREE.label : plan === "GROWTH" ? PLAN_DETAILS.GROWTH.label : PLAN_DETAILS.IMPACT.label;
   const tone = plan === "FREE" ? "neutral" : plan === "GROWTH" ? "warning" : "success";
   return <StatusBadge label={label} tone={tone} />;
 }
@@ -70,9 +69,10 @@ function QuotaBar({
   const percent = toPercent(quota.used, quota.limit);
   const resetLabel = quota.period === "LIFETIME" ? "Lifetime" : relativeResetLabel(quota.reset_at);
 
-  const showUpgrade = quota.remaining <= 0 && (plan === "FREE" || plan === "GROWTH");
-  const upgradeText =
-    plan === "FREE" ? "Upgrade to Growth \u2192" : "Upgrade to Impact for more \u2192";
+  const isExhausted = quota.remaining <= 0;
+  const showFreeCta = isExhausted && plan === "FREE";
+  const showGrowthCta = isExhausted && plan === "GROWTH";
+  const showImpactNotice = isExhausted && plan === "IMPACT";
 
   return (
     <div className="rounded-[8px] border border-brand-border p-4">
@@ -87,12 +87,24 @@ function QuotaBar({
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-secondary">
         <span>{resetLabel}</span>
-        {showUpgrade ? (
-          <Link href="/billing" className="font-semibold text-brand-primary hover:underline">
-            {upgradeText}
-          </Link>
-        ) : null}
       </div>
+      {showFreeCta ? (
+        <p className="mt-3 text-sm text-secondary">
+          You&apos;ve used your free evaluation.{" "}
+          <Link href="/billing" className="font-semibold text-brand-primary hover:underline">
+            Upgrade to keep going →
+          </Link>
+        </p>
+      ) : null}
+      {showGrowthCta ? (
+        <p className="mt-3 text-sm text-secondary">
+          {resetLabel}. Need more?{" "}
+          <Link href="/billing" className="font-semibold text-brand-primary hover:underline">
+            Upgrade to Impact →
+          </Link>
+        </p>
+      ) : null}
+      {showImpactNotice ? <p className="mt-3 text-sm text-secondary">{resetLabel}.</p> : null}
     </div>
   );
 }

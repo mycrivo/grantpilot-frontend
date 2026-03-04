@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 
 import { GenerationProgress } from "@/components/proposals/GenerationProgress";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
+import { LimitReached } from "@/components/shared/LimitReached";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
-import { QuotaGate } from "@/components/shared/QuotaGate";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { UpgradeNudge } from "@/components/shared/UpgradeNudge";
+import { UpgradeWall } from "@/components/shared/UpgradeWall";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
+import { type Plan } from "@/lib/plans";
 
 type Recommendation = "RECOMMENDED" | "APPLY_WITH_CAVEATS" | "NOT_RECOMMENDED";
-type Plan = "FREE" | "GROWTH" | "IMPACT";
-
 type FitScanResponse = {
   fit_scan: {
     id: string;
@@ -33,16 +34,13 @@ type FitScanResponse = {
 };
 
 type EntitlementsResponse = {
-  plan?: string;
-  entitlements?: {
-    proposals?: {
-      remaining?: number;
-      reset_at?: string | null;
+  plan: Plan;
+  entitlements: {
+    proposals: {
+      remaining: number;
+      period: "LIFETIME" | "BILLING_CYCLE";
+      reset_at: string | null;
     };
-  };
-  quotas?: Record<string, { remaining?: number }>;
-  period?: {
-    resets_at?: string | null;
   };
 };
 
@@ -73,46 +71,6 @@ function isUuid(value: string | null) {
   return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
-function resolvePlan(value?: string): Plan {
-  if (value === "GROWTH" || value === "IMPACT") {
-    return value;
-  }
-
-  return "FREE";
-}
-
-function resolveProposalRemaining(payload: EntitlementsResponse): number | null {
-  if (typeof payload.entitlements?.proposals?.remaining === "number") {
-    return payload.entitlements.proposals.remaining;
-  }
-
-  const directQuota = payload.quotas?.proposals?.remaining;
-  if (typeof directQuota === "number") {
-    return directQuota;
-  }
-
-  const createQuota = payload.quotas?.proposal_create?.remaining;
-  if (typeof createQuota === "number") {
-    return createQuota;
-  }
-
-  return null;
-}
-
-function resolveResetDate(payload: EntitlementsResponse): string | undefined {
-  const rawDate = payload.entitlements?.proposals?.reset_at ?? payload.period?.resets_at;
-  if (!rawDate) {
-    return undefined;
-  }
-
-  const date = new Date(rawDate);
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-
-  return date.toLocaleDateString();
-}
-
 function shortOpportunityId(opportunityId: string) {
   return opportunityId.slice(-8);
 }
@@ -130,8 +88,8 @@ export default function ProposalNewPage() {
     null,
   );
   const [plan, setPlan] = useState<Plan>("FREE");
-  const [proposalRemaining, setProposalRemaining] = useState<number | null>(null);
-  const [resetDate, setResetDate] = useState<string | undefined>(undefined);
+  const [proposalRemaining, setProposalRemaining] = useState<number>(0);
+  const [proposalResetAt, setProposalResetAt] = useState<string | null>(null);
   const [freeConfirmed, setFreeConfirmed] = useState(false);
 
   const [preflightError, setPreflightError] = useState<ApiClientError | null>(null);
@@ -186,9 +144,21 @@ export default function ProposalNewPage() {
 
         setFitScan(fitScanResponse.fit_scan);
         setOpportunitySummary(opportunityResponse.funding_opportunity);
-        setPlan(resolvePlan(entitlementsResponse.plan));
-        setProposalRemaining(resolveProposalRemaining(entitlementsResponse));
-        setResetDate(resolveResetDate(entitlementsResponse));
+        if (!entitlementsResponse.plan) {
+          throw new ApiClientError(500, "STOP: GET /api/me/entitlements missing plan.");
+        }
+        if (
+          entitlementsResponse.entitlements.proposals.period === "BILLING_CYCLE" &&
+          !entitlementsResponse.entitlements.proposals.reset_at
+        ) {
+          throw new ApiClientError(
+            500,
+            "STOP: GET /api/me/entitlements missing proposals.reset_at for billing-cycle quota.",
+          );
+        }
+        setPlan(entitlementsResponse.plan);
+        setProposalRemaining(entitlementsResponse.entitlements.proposals.remaining);
+        setProposalResetAt(entitlementsResponse.entitlements.proposals.reset_at);
       } catch (error) {
         if (error instanceof ApiClientError) {
           setPreflightError(error);
@@ -217,7 +187,7 @@ export default function ProposalNewPage() {
     queryContext?.opportunityTitle ??
     "Funding Opportunity";
   const opportunityIdSuffix = queryContext ? shortOpportunityId(queryContext.opportunityId) : "";
-  const proposalAllowed = proposalRemaining === null ? true : proposalRemaining > 0;
+  const proposalAllowed = proposalRemaining > 0;
 
   const runGeneration = async () => {
     if (!queryContext) {
@@ -321,6 +291,16 @@ export default function ProposalNewPage() {
     );
   }
 
+  if (!proposalAllowed && plan === "FREE") {
+    return (
+      <UpgradeWall
+        currentOpportunityTitle={titleLine}
+        previousOpportunityTitle={null}
+        exhaustedResource="proposals"
+      />
+    );
+  }
+
   return (
     <section className="space-y-6">
       <div className="card space-y-2">
@@ -387,13 +367,20 @@ export default function ProposalNewPage() {
           </div>
         ) : null}
 
-        <QuotaGate
-          action="PROPOSAL_CREATE"
-          plan={plan}
-          isAllowed={proposalAllowed}
-          resetDate={resetDate}
-          onUpgrade={() => router.push("/billing")}
-        >
+        {!proposalAllowed ? (
+          <>
+            {plan === "GROWTH" && proposalResetAt ? (
+              <UpgradeNudge
+                exhaustedResource="proposals"
+                resetAt={proposalResetAt}
+                currentOpportunityTitle={titleLine}
+              />
+            ) : null}
+            {plan === "IMPACT" && proposalResetAt ? (
+              <LimitReached exhaustedResource="proposals" resetAt={proposalResetAt} />
+            ) : null}
+          </>
+        ) : (
           <button
             type="button"
             className="btn-primary inline-flex items-center disabled:cursor-not-allowed disabled:opacity-60"
@@ -402,7 +389,7 @@ export default function ProposalNewPage() {
           >
             Generate Proposal
           </button>
-        </QuotaGate>
+        )}
 
         <button
           type="button"

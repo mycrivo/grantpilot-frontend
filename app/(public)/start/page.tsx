@@ -1,16 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
+import { LimitReached } from "@/components/shared/LimitReached";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
+import { UpgradeNudge } from "@/components/shared/UpgradeNudge";
+import { UpgradeWall } from "@/components/shared/UpgradeWall";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { storeOpportunityIntent } from "@/lib/auth-intent";
+import { type Plan } from "@/lib/plans";
 
-type Plan = "FREE" | "GROWTH" | "IMPACT";
 type StartStep = "parse" | "auth" | "opportunity" | "completeness" | "quota" | "create_fit_scan";
 
 type FundingOpportunityResponse = {
@@ -31,9 +33,16 @@ type EntitlementsResponse = {
   entitlements: {
     fit_scans: {
       remaining: number;
+      period: "LIFETIME" | "BILLING_CYCLE";
       reset_at: string | null;
     };
   };
+};
+
+type FitScanListResponse = {
+  fit_scans: Array<{
+    opportunity_title: string | null;
+  }>;
 };
 
 type FitScanCreateResponse = {
@@ -98,7 +107,9 @@ function StartPageClient() {
   const [opportunityTitle, setOpportunityTitle] = useState<string | null>(null);
   const [donorName, setDonorName] = useState<string | null>(null);
   const [quotaBlocked, setQuotaBlocked] = useState(false);
+  const [quotaResetAt, setQuotaResetAt] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan>("FREE");
+  const [previousOpportunityTitle, setPreviousOpportunityTitle] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [invalidLink, setInvalidLink] = useState(false);
   const [unavailableOpportunity, setUnavailableOpportunity] = useState(false);
@@ -123,6 +134,8 @@ function StartPageClient() {
     setFatalError(null);
     setUnavailableOpportunity(false);
     setQuotaBlocked(false);
+    setQuotaResetAt(null);
+    setPreviousOpportunityTitle(null);
     setStep("opportunity");
 
     try {
@@ -161,6 +174,13 @@ function StartPageClient() {
       const entitlements = await apiRequest<EntitlementsResponse>("/api/me/entitlements", { method: "GET" });
       setPlan(entitlements.plan);
       if (entitlements.entitlements.fit_scans.remaining <= 0) {
+        if (entitlements.entitlements.fit_scans.period === "BILLING_CYCLE" && !entitlements.entitlements.fit_scans.reset_at) {
+          throw new ApiClientError(
+            500,
+            "STOP: GET /api/me/entitlements missing fit_scans.reset_at for billing-cycle quota.",
+          );
+        }
+        setQuotaResetAt(entitlements.entitlements.fit_scans.reset_at);
         setQuotaBlocked(true);
         return;
       }
@@ -209,6 +229,30 @@ function StartPageClient() {
   }, [opportunityId, router]);
 
   useEffect(() => {
+    if (!quotaBlocked || plan !== "FREE") {
+      return;
+    }
+    let active = true;
+    void (async () => {
+      try {
+        const payload = await apiRequest<FitScanListResponse>("/api/fit-scans?limit=1", { method: "GET" });
+        if (!active) {
+          return;
+        }
+        const maybeTitle = payload.fit_scans[0]?.opportunity_title ?? null;
+        setPreviousOpportunityTitle(typeof maybeTitle === "string" && maybeTitle.trim() ? maybeTitle : null);
+      } catch {
+        if (active) {
+          setPreviousOpportunityTitle(null);
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [plan, quotaBlocked]);
+
+  useEffect(() => {
     if (invalidLink || !opportunityId) {
       return;
     }
@@ -252,18 +296,28 @@ function StartPageClient() {
   }
 
   if (quotaBlocked) {
+    if (plan === "FREE") {
+      return (
+        <UpgradeWall
+          currentOpportunityTitle={opportunityTitle}
+          previousOpportunityTitle={previousOpportunityTitle}
+          exhaustedResource="fit_scans"
+          checkoutIntentOpportunityId={opportunityId}
+        />
+      );
+    }
+
     return (
       <section className="space-y-6">
         <HeaderCard context={headerContext} />
-        <div className="card border-brand-warning/30 bg-brand-warning/5">
-          <h4>Fit Scan quota reached</h4>
-          <p className="mt-2 text-secondary">
-            You have no Fit Scans remaining on your {plan} plan right now. Upgrade to continue.
-          </p>
-          <Link href="/billing" className="btn-primary mt-4 inline-flex items-center">
-            View plans and billing
-          </Link>
-        </div>
+        {plan === "GROWTH" && quotaResetAt ? (
+          <UpgradeNudge
+            exhaustedResource="fit_scans"
+            resetAt={quotaResetAt}
+            currentOpportunityTitle={opportunityTitle}
+          />
+        ) : null}
+        {plan === "IMPACT" && quotaResetAt ? <LimitReached exhaustedResource="fit_scans" resetAt={quotaResetAt} /> : null}
       </section>
     );
   }

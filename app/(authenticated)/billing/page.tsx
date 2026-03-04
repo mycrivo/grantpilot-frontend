@@ -8,8 +8,7 @@ import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
-
-type Plan = "FREE" | "GROWTH" | "IMPACT";
+import { PLAN_DETAILS, type Plan } from "@/lib/plans";
 
 type EntitlementsResponse = {
   plan: Plan;
@@ -89,10 +88,10 @@ export default function BillingPage() {
       return "Plan";
     }
     return entitlements.plan === "FREE"
-      ? "Free Plan"
+      ? PLAN_DETAILS.FREE.label
       : entitlements.plan === "GROWTH"
-        ? "Growth Plan"
-        : "Impact Plan";
+        ? PLAN_DETAILS.GROWTH.label
+        : PLAN_DETAILS.IMPACT.label;
   }, [entitlements]);
 
   const runCheckout = async (plan: "GROWTH" | "IMPACT") => {
@@ -180,22 +179,22 @@ export default function BillingPage() {
           <h4>Choose your plan</h4>
           <div className="grid gap-4 md:grid-cols-2">
             <PlanCard
-              title="Growth"
-              price="$39/mo"
-              fitScans="10/month"
-              proposals="3/month"
-              regenerations="3 per proposal"
+              title={PLAN_DETAILS.GROWTH.marketingName}
+              price={PLAN_DETAILS.GROWTH.priceLabel}
+              fitScans={`${PLAN_DETAILS.GROWTH.fitScansLimit}/month`}
+              proposals={`${PLAN_DETAILS.GROWTH.proposalsLimit}/month`}
+              regenerations={`${PLAN_DETAILS.GROWTH.regenerationsPerProposal} per proposal`}
               buttonLabel="Upgrade to Growth"
               loading={activeCheckoutPlan === "GROWTH"}
               disabled={activeCheckoutPlan !== null}
               onClick={() => void runCheckout("GROWTH")}
             />
             <PlanCard
-              title="Impact"
-              price="$79/mo"
-              fitScans="20/month"
-              proposals="5/month"
-              regenerations="3 per proposal"
+              title={PLAN_DETAILS.IMPACT.marketingName}
+              price={PLAN_DETAILS.IMPACT.priceLabel}
+              fitScans={`${PLAN_DETAILS.IMPACT.fitScansLimit}/month`}
+              proposals={`${PLAN_DETAILS.IMPACT.proposalsLimit}/month`}
+              regenerations={`${PLAN_DETAILS.IMPACT.regenerationsPerProposal} per proposal`}
               buttonLabel="Upgrade to Impact"
               loading={activeCheckoutPlan === "IMPACT"}
               disabled={activeCheckoutPlan !== null}
