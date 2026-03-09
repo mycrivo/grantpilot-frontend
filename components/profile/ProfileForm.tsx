@@ -139,10 +139,20 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   const [error, setError] = useState<ApiClientError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const syncedSnapshot = useRef(snapshot(defaultProfile()));
 
   const isDirty = useMemo(() => snapshot(profile) !== syncedSnapshot.current, [profile]);
+  const isCreateMode = !profileExists;
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const load = async () => {
@@ -270,7 +280,6 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       setProfile(nextProfile);
       setProfileExists(true);
       syncedSnapshot.current = snapshot(nextProfile);
-      setSavedMessage("Profile saved.");
 
       let nextCompleteness: NgoProfileCompleteness | null = null;
       try {
@@ -280,9 +289,17 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         // Save has already succeeded; keep UI stable if completeness refresh fails.
       }
 
+      const successMessage =
+        nextCompleteness?.profile_status === "COMPLETE"
+          ? "Profile complete — you can now run Fit Scans"
+          : "Profile saved — complete the remaining fields to unlock Fit Scans";
+      setSavedMessage(successMessage);
+      setToast({ tone: "success", message: successMessage });
+
       if (fromStart && opportunityId && nextCompleteness?.profile_status === "COMPLETE") {
         setRedirecting(true);
         setSavedMessage("Profile complete — checking your fit now…");
+        setToast({ tone: "success", message: "Profile complete — checking your fit now..." });
         window.setTimeout(() => {
           router.push(`/start?opportunity_id=${encodeURIComponent(opportunityId)}&source=profile`);
         }, 900);
@@ -290,10 +307,11 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     } catch (saveError) {
       if (saveError instanceof ApiClientError) {
         if (saveError.status === 422) {
+          const message = "Some profile fields are invalid. Please review your entries and try again.";
           setError(
             new ApiClientError(
               422,
-              "Some profile fields are invalid. Please review your entries and try again.",
+              message,
               {
                 error_code: saveError.errorCode,
                 details: saveError.details,
@@ -301,11 +319,13 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               },
             ),
           );
+          setToast({ tone: "error", message });
         } else if (saveError.status === 401) {
+          const message = "Your session expired. Please sign in again.";
           setError(
             new ApiClientError(
               401,
-              "Your session expired. Please sign in again.",
+              message,
               {
                 error_code: saveError.errorCode,
                 details: saveError.details,
@@ -313,11 +333,13 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               },
             ),
           );
+          setToast({ tone: "error", message });
         } else if (saveError.status >= 500) {
+          const message = "We couldn't save your profile right now due to a server issue. Please try again.";
           setError(
             new ApiClientError(
               saveError.status,
-              "We couldn't save your profile right now due to a server issue. Please try again.",
+              message,
               {
                 error_code: saveError.errorCode,
                 details: saveError.details,
@@ -325,11 +347,15 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               },
             ),
           );
+          setToast({ tone: "error", message });
         } else {
           setError(saveError);
+          setToast({ tone: "error", message: saveError.message });
         }
       } else {
-        setError(new ApiClientError(500, "We couldn't save your profile right now."));
+        const message = "We couldn't save your profile right now.";
+        setError(new ApiClientError(500, message));
+        setToast({ tone: "error", message });
       }
     } finally {
       setSaving(false);
@@ -342,6 +368,20 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
   return (
     <section className="space-y-6">
+      {toast ? (
+        <div
+          className={`fixed right-4 top-4 z-50 rounded-[10px] border px-4 py-3 text-sm font-medium shadow-lg ${
+            toast.tone === "success"
+              ? "border-brand-success/30 bg-brand-success/10 text-brand-success"
+              : "border-brand-error/30 bg-brand-error/10 text-brand-error"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {toast.message}
+        </div>
+      ) : null}
+
       <CompletenessBar completeness={completeness} />
 
       {fromStart ? (
@@ -360,7 +400,14 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       {error ? <ErrorDisplay error={error} onRetry={() => window.location.reload()} /> : null}
 
       <div className="card space-y-6">
-        <h3>NGO Profile</h3>
+        <div className="space-y-2">
+          <h3>{isCreateMode ? "Create Your Organisation Profile" : "Your Organisation Profile"}</h3>
+          <p className="text-secondary">
+            {isCreateMode
+              ? "Tell us about your organisation so we can match you with the right funding opportunities."
+              : "Keep your profile current for the best fit scan results."}
+          </p>
+        </div>
 
         <div className="space-y-4">
           <h4>Section 1: Organisation Identity (Required)</h4>
@@ -590,7 +637,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
         <div className="flex items-center gap-3">
           <button type="button" className="btn-primary" onClick={() => void saveProfile()} disabled={saving || redirecting}>
-            {saving || redirecting ? "Saving..." : "Save Profile"}
+            {saving || redirecting ? "Saving..." : isCreateMode ? "Save Profile" : "Update Profile"}
           </button>
           {isDirty ? <p className="text-secondary">You have unsaved changes.</p> : null}
         </div>

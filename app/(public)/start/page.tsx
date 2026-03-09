@@ -111,9 +111,69 @@ function StartPageClient() {
   const [plan, setPlan] = useState<Plan>("FREE");
   const [previousOpportunityTitle, setPreviousOpportunityTitle] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [awaitingFreeConfirmation, setAwaitingFreeConfirmation] = useState(false);
+  const [scanSubmitting, setScanSubmitting] = useState(false);
   const [invalidLink, setInvalidLink] = useState(false);
   const [unavailableOpportunity, setUnavailableOpportunity] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
+
+  const handleFlowError = useCallback(
+    (error: unknown) => {
+      if (error instanceof ApiClientError) {
+        if (error.status === 404 && error.errorCode === "OPPORTUNITY_NOT_FOUND") {
+          setUnavailableOpportunity(true);
+          return;
+        }
+        if (error.status === 404 && error.errorCode === "PROFILE_NOT_FOUND") {
+          router.replace(
+            `/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId ?? "")}&message=${encodeURIComponent(
+              "Complete your profile to run your Fit Scan.",
+            )}`,
+          );
+          return;
+        }
+        if (error.status === 409 && error.errorCode === "PROFILE_INCOMPLETE") {
+          router.replace(`/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId ?? "")}`);
+          return;
+        }
+        if (error.status === 429 && error.errorCode === "QUOTA_EXCEEDED") {
+          setQuotaBlocked(true);
+          return;
+        }
+      }
+      setFatalError("Something went wrong. Please try again.");
+    },
+    [opportunityId, router],
+  );
+
+  const createFitScan = useCallback(async () => {
+    if (!opportunityId) {
+      return;
+    }
+    setStep("create_fit_scan");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+    try {
+      const fitScan = await apiRequest<FitScanCreateResponse>(
+        "/api/fit-scans",
+        {
+          method: "POST",
+          body: JSON.stringify({ funding_opportunity_id: opportunityId }),
+          signal: controller.signal,
+        },
+        { auth: true, retryOn401: true },
+      );
+      router.replace(`/fit-scan/${encodeURIComponent(fitScan.fit_scan.id)}`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setFatalError("Something went wrong. Please try again.");
+        return;
+      }
+      handleFlowError(error);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }, [handleFlowError, opportunityId, router]);
 
   useEffect(() => {
     const raw = searchParams.get("opportunity_id");
@@ -134,6 +194,8 @@ function StartPageClient() {
     setFatalError(null);
     setUnavailableOpportunity(false);
     setQuotaBlocked(false);
+    setAwaitingFreeConfirmation(false);
+    setScanSubmitting(false);
     setQuotaResetAt(null);
     setPreviousOpportunityTitle(null);
     setStep("opportunity");
@@ -185,56 +247,16 @@ function StartPageClient() {
         return;
       }
 
-      setStep("create_fit_scan");
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 30000);
-      try {
-        const fitScan = await apiRequest<FitScanCreateResponse>(
-          "/api/fit-scans",
-          {
-            method: "POST",
-            body: JSON.stringify({ funding_opportunity_id: opportunityId }),
-            signal: controller.signal,
-          },
-          { auth: true, retryOn401: true },
-        );
-        router.replace(`/fit-scan/${encodeURIComponent(fitScan.fit_scan.id)}`);
+      if (entitlements.plan === "FREE") {
+        setAwaitingFreeConfirmation(true);
         return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          setFatalError("Something went wrong. Please try again.");
-          return;
-        }
-        throw error;
-      } finally {
-        window.clearTimeout(timeoutId);
       }
+
+      await createFitScan();
     } catch (error) {
-      if (error instanceof ApiClientError) {
-        if (error.status === 404 && error.errorCode === "OPPORTUNITY_NOT_FOUND") {
-          setUnavailableOpportunity(true);
-          return;
-        }
-        if (error.status === 404 && error.errorCode === "PROFILE_NOT_FOUND") {
-          router.replace(
-            `/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId)}&message=${encodeURIComponent(
-              "Complete your profile to run your Fit Scan.",
-            )}`,
-          );
-          return;
-        }
-        if (error.status === 409 && error.errorCode === "PROFILE_INCOMPLETE") {
-          router.replace(`/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId)}`);
-          return;
-        }
-        if (error.status === 429 && error.errorCode === "QUOTA_EXCEEDED") {
-          setQuotaBlocked(true);
-          return;
-        }
-      }
-      setFatalError("Something went wrong. Please try again.");
+      handleFlowError(error);
     }
-  }, [opportunityId, router]);
+  }, [createFitScan, handleFlowError, opportunityId, router]);
 
   useEffect(() => {
     if (!quotaBlocked || plan !== "FREE") {
@@ -326,6 +348,44 @@ function StartPageClient() {
           />
         ) : null}
         {plan === "IMPACT" && quotaResetAt ? <LimitReached exhaustedResource="fit_scans" resetAt={quotaResetAt} /> : null}
+      </section>
+    );
+  }
+
+  if (awaitingFreeConfirmation) {
+    return (
+      <section className="space-y-6">
+        <HeaderCard context={headerContext} />
+        <div className="card space-y-4">
+          <h4>Use your free Fit Scan?</h4>
+          <p className="text-secondary">
+            This will use your free Fit Scan (1 of 1 lifetime). You can upgrade anytime for more.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="btn-primary inline-flex items-center"
+              disabled={scanSubmitting}
+              onClick={() => {
+                void (async () => {
+                  setScanSubmitting(true);
+                  await createFitScan();
+                  setScanSubmitting(false);
+                })();
+              }}
+            >
+              {scanSubmitting ? "Running Fit Scan..." : "Run Fit Scan"}
+            </button>
+            <a
+              href="https://ngoinfo.org"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-11 items-center rounded-[8px] border border-brand-border px-4 text-sm font-semibold text-brand-text-primary"
+            >
+              Browse Other Opportunities
+            </a>
+          </div>
+        </div>
       </section>
     );
   }

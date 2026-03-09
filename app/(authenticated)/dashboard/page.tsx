@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { FitScanList } from "@/components/dashboard/FitScanList";
@@ -115,9 +114,9 @@ function isProposalListResponse(value: unknown): value is ProposalListResponse {
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [entitlements, setEntitlements] = useState<EntitlementsResponse | null>(null);
   const [completeness, setCompleteness] = useState<ProfileCompletenessResponse | null>(null);
+  const [profileMissing, setProfileMissing] = useState(false);
   const [fitScans, setFitScans] = useState<FitScanListResponse["fit_scans"]>([]);
   const [proposals, setProposals] = useState<ProposalListResponse["proposals"]>([]);
 
@@ -144,11 +143,12 @@ export default function DashboardPage() {
 
     void apiRequest<ProfileCompletenessResponse>("/api/ngo-profile/completeness", { method: "GET" })
       .then((response) => {
+        setProfileMissing(false);
         setCompleteness(response);
       })
       .catch((error: unknown) => {
         if (error instanceof ApiClientError && error.status === 404 && error.errorCode === "PROFILE_NOT_FOUND") {
-          router.replace("/profile");
+          setProfileMissing(true);
           return;
         }
         setCompletenessError(
@@ -196,9 +196,16 @@ export default function DashboardPage() {
         );
       })
       .finally(markDone);
-  }, [router]);
+  }, []);
 
   const isPageLoading = useMemo(() => loadingCount > 0, [loadingCount]);
+  const isProfileIncomplete = profileMissing || completeness?.profile_status === "DRAFT";
+  const hasFitScans = fitScans.length > 0;
+  const hasProposals = proposals.length > 0;
+  const suggestedFitScan =
+    fitScans.find(
+      (scan) => scan.overall_recommendation === "RECOMMENDED" || scan.overall_recommendation === "APPLY_WITH_CAVEATS",
+    ) ?? null;
 
   if (isPageLoading) {
     return <LoadingSkeleton variant="page" lines={8} />;
@@ -236,6 +243,54 @@ export default function DashboardPage() {
             <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
               Complete your profile \u2192
             </Link>
+          )}
+        </section>
+      ) : null}
+
+      {!completenessError && isProfileIncomplete ? (
+        <section className="card space-y-3 border-brand-warning/30 bg-brand-warning/5">
+          <h3>Complete your profile to get started</h3>
+          <p className="text-secondary">Finish your profile so GrantPilot can evaluate funding fit accurately.</p>
+          <Link href="/profile" className="btn-primary inline-flex w-fit items-center">
+            Complete Profile
+          </Link>
+        </section>
+      ) : null}
+
+      {!completenessError && !isProfileIncomplete && !hasFitScans ? (
+        <section className="card space-y-3">
+          <h3>Your profile is ready.</h3>
+          <p className="text-secondary">
+            Find a funding opportunity on NGOInfo.org and check your fit.
+          </p>
+          <a
+            href="https://ngoinfo.org"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-primary inline-flex w-fit items-center"
+          >
+            Browse Opportunities on NGOInfo.org
+          </a>
+        </section>
+      ) : null}
+
+      {!completenessError && !isProfileIncomplete && hasFitScans && !hasProposals ? (
+        <section className="card space-y-3">
+          <h3>You have fit scan results.</h3>
+          <p className="text-secondary">Draft your first proposal.</p>
+          {suggestedFitScan ? (
+            <Link href={`/fit-scan/${encodeURIComponent(suggestedFitScan.id)}`} className="btn-primary inline-flex w-fit items-center">
+              Open suggested fit scan
+            </Link>
+          ) : (
+            <a
+              href="https://ngoinfo.org"
+              target="_blank"
+              rel="noreferrer"
+              className="btn-primary inline-flex w-fit items-center"
+            >
+              Browse Opportunities on NGOInfo.org
+            </a>
           )}
         </section>
       ) : null}
