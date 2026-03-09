@@ -25,7 +25,7 @@ type FundingOpportunityResponse = {
 };
 
 type NgoProfileCompleteness = {
-  status: "MISSING" | "DRAFT" | "COMPLETE";
+  profile_status: "DRAFT" | "COMPLETE";
 };
 
 type EntitlementsResponse = {
@@ -161,7 +161,7 @@ function StartPageClient() {
 
       setStep("completeness");
       const completeness = await apiRequest<NgoProfileCompleteness>("/api/ngo-profile/completeness", { method: "GET" });
-      if (completeness.status === "MISSING" || completeness.status === "DRAFT") {
+      if (completeness.profile_status === "DRAFT") {
         router.replace(
           `/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId)}&message=${encodeURIComponent(
             "Complete your profile to run your Fit Scan.",
@@ -213,6 +213,14 @@ function StartPageClient() {
       if (error instanceof ApiClientError) {
         if (error.status === 404 && error.errorCode === "OPPORTUNITY_NOT_FOUND") {
           setUnavailableOpportunity(true);
+          return;
+        }
+        if (error.status === 404 && error.errorCode === "PROFILE_NOT_FOUND") {
+          router.replace(
+            `/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId)}&message=${encodeURIComponent(
+              "Complete your profile to run your Fit Scan.",
+            )}`,
+          );
           return;
         }
         if (error.status === 409 && error.errorCode === "PROFILE_INCOMPLETE") {

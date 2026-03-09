@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { FitScanList } from "@/components/dashboard/FitScanList";
@@ -34,11 +35,9 @@ type EntitlementsResponse = {
 };
 
 type ProfileCompletenessResponse = {
-  status: "MISSING" | "DRAFT" | "COMPLETE";
-  percent_complete: number;
-  required_fields: string[];
+  profile_status: "DRAFT" | "COMPLETE";
+  completeness_score: number;
   missing_fields: string[];
-  updated_at: string | null;
 };
 
 type FitScanListResponse = {
@@ -116,6 +115,7 @@ function isProposalListResponse(value: unknown): value is ProposalListResponse {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [entitlements, setEntitlements] = useState<EntitlementsResponse | null>(null);
   const [completeness, setCompleteness] = useState<ProfileCompletenessResponse | null>(null);
   const [fitScans, setFitScans] = useState<FitScanListResponse["fit_scans"]>([]);
@@ -147,6 +147,10 @@ export default function DashboardPage() {
         setCompleteness(response);
       })
       .catch((error: unknown) => {
+        if (error instanceof ApiClientError && error.status === 404 && error.errorCode === "PROFILE_NOT_FOUND") {
+          router.replace("/profile");
+          return;
+        }
         setCompletenessError(
           error instanceof ApiClientError ? error : new ApiClientError(500, "Failed to load profile completeness."),
         );
@@ -192,7 +196,7 @@ export default function DashboardPage() {
         );
       })
       .finally(markDone);
-  }, []);
+  }, [router]);
 
   const isPageLoading = useMemo(() => loadingCount > 0, [loadingCount]);
 
@@ -213,15 +217,20 @@ export default function DashboardPage() {
       ) : completeness ? (
         <section
           className={`card space-y-3 ${
-            completeness.status === "COMPLETE" ? "border-brand-success/30 bg-brand-success/5" : "border-brand-warning/30 bg-brand-warning/5"
+            completeness.profile_status === "COMPLETE"
+              ? "border-brand-success/30 bg-brand-success/5"
+              : "border-brand-warning/30 bg-brand-warning/5"
           }`}
         >
           <h3>Profile Completeness</h3>
-          <p className="text-secondary">Your profile is {completeness.percent_complete}% complete</p>
+          <p className="text-secondary">Your profile is {completeness.completeness_score}% complete</p>
           <div className="h-2 rounded-full bg-brand-divider">
-            <div className="h-2 rounded-full bg-brand-primary" style={{ width: `${Math.max(0, Math.min(100, completeness.percent_complete))}%` }} />
+            <div
+              className="h-2 rounded-full bg-brand-primary"
+              style={{ width: `${Math.max(0, Math.min(100, completeness.completeness_score))}%` }}
+            />
           </div>
-          {completeness.status === "COMPLETE" ? (
+          {completeness.profile_status === "COMPLETE" ? (
             <p className="text-sm font-medium text-brand-success">Profile complete</p>
           ) : (
             <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">

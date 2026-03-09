@@ -48,7 +48,7 @@ export type NgoProfileResponse = {
 };
 
 export type NgoProfileCompleteness = {
-  profile_status: "MISSING" | "DRAFT" | "COMPLETE";
+  profile_status: "DRAFT" | "COMPLETE";
   completeness_score: number;
   missing_fields: string[];
 };

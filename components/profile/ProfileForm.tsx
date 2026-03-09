@@ -11,6 +11,7 @@ import {
   type FocusSector,
   type NgoPastProject,
   type NgoProfile,
+  type NgoProfileResponse,
   type NgoProfileCompleteness,
   updateNgoProfile,
 } from "@/lib/api/ngoProfile";
@@ -243,9 +244,20 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         })),
       };
 
-      const response = profileExists
-        ? await updateNgoProfile(payload)
-        : await createNgoProfile(payload);
+      let response: NgoProfileResponse;
+      if (profileExists) {
+        response = await updateNgoProfile(payload);
+      } else {
+        try {
+          response = await createNgoProfile(payload);
+        } catch (createError) {
+          if (createError instanceof ApiClientError && createError.status === 409) {
+            response = await updateNgoProfile(payload);
+          } else {
+            throw createError;
+          }
+        }
+      }
 
       const nextProfile: NgoProfile = {
         ...response.ngo_profile,
@@ -277,7 +289,45 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       }
     } catch (saveError) {
       if (saveError instanceof ApiClientError) {
-        setError(saveError);
+        if (saveError.status === 422) {
+          setError(
+            new ApiClientError(
+              422,
+              "Some profile fields are invalid. Please review your entries and try again.",
+              {
+                error_code: saveError.errorCode,
+                details: saveError.details,
+                request_id: saveError.requestId,
+              },
+            ),
+          );
+        } else if (saveError.status === 401) {
+          setError(
+            new ApiClientError(
+              401,
+              "Your session expired. Please sign in again.",
+              {
+                error_code: saveError.errorCode,
+                details: saveError.details,
+                request_id: saveError.requestId,
+              },
+            ),
+          );
+        } else if (saveError.status >= 500) {
+          setError(
+            new ApiClientError(
+              saveError.status,
+              "We couldn't save your profile right now due to a server issue. Please try again.",
+              {
+                error_code: saveError.errorCode,
+                details: saveError.details,
+                request_id: saveError.requestId,
+              },
+            ),
+          );
+        } else {
+          setError(saveError);
+        }
       } else {
         setError(new ApiClientError(500, "We couldn't save your profile right now."));
       }
