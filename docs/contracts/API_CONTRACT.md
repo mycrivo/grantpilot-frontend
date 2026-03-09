@@ -1,7 +1,7 @@
 # API_CONTRACT.md (Canonical — Single Source of Truth)
 
 **Status:** Canonical — LOCKED FOR BUILD
-**Last updated:** 2026-02-23
+**Last updated:** 2026-03-09
 **Scope:** GrantPilot API contract for backend + frontend integration
 
 This file supersedes any duplicate copies. If multiple copies exist in different repos, they MUST be kept identical to this canonical version. Cursor MUST use this file as the authoritative source for all API call shapes, error codes, and response contracts. If any other document conflicts with this file, this file wins.
@@ -396,7 +396,7 @@ Errors:
 
 ---
 
-## 6) NGO Profile Endpoints (MVP — Locked)
+## 6) NGO Profile Endpoints (MVP — Locked, Contract Aligned 2026-03-09)
 
 ### 6.1 GET /api/ngo-profile
 
@@ -423,8 +423,8 @@ Response 200:
     "past_projects": [
       {
         "id": "uuid",
-        "project_title": "string",
-        "donor_funder": "string or null",
+        "title": "string",
+        "donor": "string or null",
         "duration": "string or null",
         "location": "string or null",
         "summary": "string or null"
@@ -433,8 +433,8 @@ Response 200:
     "full_time_staff": 0,
     "annual_budget_amount": 0,
     "annual_budget_currency": "USD | GBP | EUR | INR | KES | string or null",
-    "me_practices": "string or null",
-    "previous_funders": ["string"],
+    "monitoring_and_evaluation_practices": "string or null",
+    "funders_worked_with_before": ["string"],
     "created_at": "ISO-8601 timestamp",
     "updated_at": "ISO-8601 timestamp"
   }
@@ -499,32 +499,24 @@ Response 200:
 
 ```json
 {
-  "status": "MISSING | DRAFT | COMPLETE",
-  "percent_complete": 0,
-  "required_fields": [
-    "organization_name",
-    "country_of_registration",
-    "mission_statement",
-    "focus_sectors",
-    "geographic_areas_of_work",
-    "target_groups",
-    "past_projects"
-  ],
-  "missing_fields": ["string"],
-  "updated_at": "ISO-8601 timestamp or null"
+  "profile_status": "DRAFT | COMPLETE",
+  "completeness_score": 0,
+  "missing_fields": ["string"]
 }
 ```
 
 **Rules:**
 
-- If no profile exists: `status="MISSING"`, `percent_complete=0`, `missing_fields` MUST include all `required_fields`.
-- If profile exists but required fields missing: `status="DRAFT"`, `missing_fields` contains remaining required keys.
-- If complete: `status="COMPLETE"`, `missing_fields=[]`, `percent_complete=100`.
-- `past_projects` is considered missing if array is empty OR no item has non-empty `project_title`.
+- If no profile exists: returns **404** `PROFILE_NOT_FOUND` (not a 200 with status "MISSING").
+- If profile exists but required fields missing: `profile_status="DRAFT"`, `missing_fields` contains remaining required keys.
+- If complete: `profile_status="COMPLETE"`, `missing_fields=[]`, `completeness_score=100`.
+- `past_projects` is considered missing if array is empty OR no item has non-empty `title`.
+- Backend does NOT return the previously documented required-field list or `updated_at` in this response.
 
 Errors:
 
 - 401 `UNAUTHORIZED`
+- 404 `PROFILE_NOT_FOUND` (no profile exists for this user)
 - 500 `INTERNAL_SERVER_ERROR`
 
 ---
