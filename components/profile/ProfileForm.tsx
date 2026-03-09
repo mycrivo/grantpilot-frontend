@@ -28,8 +28,8 @@ type ProfileFormProps = {
 type FieldErrors = Partial<Record<"contact_email" | "website" | "year_of_establishment", string>>;
 
 const emptyProject = (): NgoPastProject => ({
-  project_title: "",
-  donor_funder: null,
+  title: "",
+  donor: null,
   duration: null,
   location: null,
   summary: null,
@@ -50,8 +50,8 @@ const defaultProfile = (): NgoProfile => ({
   full_time_staff: null,
   annual_budget_amount: null,
   annual_budget_currency: null,
-  me_practices: null,
-  previous_funders: [],
+  monitoring_and_evaluation_practices: null,
+  funders_worked_with_before: [],
 });
 
 const focusSectors: FocusSector[] = [
@@ -232,11 +232,11 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         contact_person_name: normalizeNullable(profile.contact_person_name ?? ""),
         contact_email: normalizeNullable(profile.contact_email ?? ""),
         website: normalizeNullable(profile.website ?? ""),
-        me_practices: normalizeNullable(profile.me_practices ?? ""),
+        monitoring_and_evaluation_practices: normalizeNullable(profile.monitoring_and_evaluation_practices ?? ""),
         annual_budget_currency: normalizeNullable(profile.annual_budget_currency ?? ""),
         past_projects: profile.past_projects.map((project) => ({
-          project_title: project.project_title.trim(),
-          donor_funder: normalizeNullable(project.donor_funder ?? ""),
+          title: project.title.trim(),
+          donor: normalizeNullable(project.donor ?? ""),
           duration: normalizeNullable(project.duration ?? ""),
           location: normalizeNullable(project.location ?? ""),
           summary: normalizeNullable(project.summary ?? ""),
@@ -268,7 +268,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         // Save has already succeeded; keep UI stable if completeness refresh fails.
       }
 
-      if (fromStart && opportunityId && nextCompleteness?.status === "COMPLETE") {
+      if (fromStart && opportunityId && nextCompleteness?.profile_status === "COMPLETE") {
         setRedirecting(true);
         setSavedMessage("Profile complete — checking your fit now…");
         window.setTimeout(() => {
@@ -521,8 +521,10 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-brand-text-primary">M&amp;E Practices</label>
               <textarea
-                value={profile.me_practices ?? ""}
-                onChange={(event) => setProfile((prev) => ({ ...prev, me_practices: event.target.value }))}
+                value={profile.monitoring_and_evaluation_practices ?? ""}
+                onChange={(event) =>
+                  setProfile((prev) => ({ ...prev, monitoring_and_evaluation_practices: event.target.value }))
+                }
                 rows={3}
                 className="mt-1 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-2 text-[14px] outline-none focus:border-brand-primary"
               />
@@ -531,8 +533,8 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
           <TagInput
             label="Previous Funders"
-            value={profile.previous_funders}
-            onChange={(next) => setProfile((prev) => ({ ...prev, previous_funders: next }))}
+            value={profile.funders_worked_with_before}
+            onChange={(next) => setProfile((prev) => ({ ...prev, funders_worked_with_before: next }))}
           />
         </div>
 

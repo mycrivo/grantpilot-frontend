@@ -22,7 +22,7 @@ export function PastProjectCard({ index, project, onChange, onRemove }: PastProj
           className="text-left text-sm font-semibold text-brand-text-primary"
           onClick={() => setExpanded((prev) => !prev)}
         >
-          Project {index + 1}: {project.project_title?.trim() || "Untitled"}
+          Project {index + 1}: {project.title?.trim() || "Untitled"}
         </button>
         <button
           type="button"
@@ -37,16 +37,16 @@ export function PastProjectCard({ index, project, onChange, onRemove }: PastProj
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-brand-text-primary">Project Title *</label>
             <input
-              value={project.project_title}
-              onChange={(event) => onChange({ ...project, project_title: event.target.value })}
+              value={project.title}
+              onChange={(event) => onChange({ ...project, title: event.target.value })}
               className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-brand-text-primary">Donor/Funder</label>
             <input
-              value={project.donor_funder ?? ""}
-              onChange={(event) => onChange({ ...project, donor_funder: event.target.value || null })}
+              value={project.donor ?? ""}
+              onChange={(event) => onChange({ ...project, donor: event.target.value || null })}
               className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
             />
           </div>

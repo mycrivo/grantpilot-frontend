@@ -14,8 +14,8 @@ export type FocusSector =
 
 export type NgoPastProject = {
   id?: string;
-  project_title: string;
-  donor_funder: string | null;
+  title: string;
+  donor: string | null;
   duration: string | null;
   location: string | null;
   summary: string | null;
@@ -37,8 +37,8 @@ export type NgoProfile = {
   full_time_staff: number | null;
   annual_budget_amount: number | null;
   annual_budget_currency: string | null;
-  me_practices: string | null;
-  previous_funders: string[];
+  monitoring_and_evaluation_practices: string | null;
+  funders_worked_with_before: string[];
   created_at?: string;
   updated_at?: string;
 };
@@ -48,11 +48,9 @@ export type NgoProfileResponse = {
 };
 
 export type NgoProfileCompleteness = {
-  status: "MISSING" | "DRAFT" | "COMPLETE";
-  percent_complete: number;
-  required_fields: string[];
+  profile_status: "MISSING" | "DRAFT" | "COMPLETE";
+  completeness_score: number;
   missing_fields: string[];
-  updated_at: string | null;
 };
 
 export async function getNgoProfile() {

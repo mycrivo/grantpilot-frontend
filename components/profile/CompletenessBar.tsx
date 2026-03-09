@@ -5,9 +5,9 @@ type CompletenessBarProps = {
 };
 
 export function CompletenessBar({ completeness }: CompletenessBarProps) {
-  const percent = Math.max(0, Math.min(100, completeness?.percent_complete ?? 0));
+  const percent = Math.max(0, Math.min(100, completeness?.completeness_score ?? 0));
   const missing = completeness?.missing_fields ?? [];
-  const isComplete = completeness?.status === "COMPLETE";
+  const isComplete = completeness?.profile_status === "COMPLETE";
 
   return (
     <div className="sticky top-4 z-10">
