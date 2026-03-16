@@ -9,6 +9,8 @@ import { QuotaOverview } from "@/components/dashboard/QuotaOverview";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
+import { fetchCompleteness } from "@/lib/profile-service";
+import type { ProfileCompleteness } from "@/lib/profile-types";
 
 type EntitlementsResponse = {
   plan: "FREE" | "GROWTH" | "IMPACT";
@@ -31,12 +33,6 @@ type EntitlementsResponse = {
       limit_per_proposal: number;
     };
   };
-};
-
-type ProfileCompletenessResponse = {
-  profile_status: "DRAFT" | "COMPLETE";
-  completeness_score: number;
-  missing_fields: string[];
 };
 
 type FitScanListResponse = {
@@ -115,7 +111,7 @@ function isProposalListResponse(value: unknown): value is ProposalListResponse {
 
 export default function DashboardPage() {
   const [entitlements, setEntitlements] = useState<EntitlementsResponse | null>(null);
-  const [completeness, setCompleteness] = useState<ProfileCompletenessResponse | null>(null);
+  const [completeness, setCompleteness] = useState<ProfileCompleteness | null>(null);
   const [profileMissing, setProfileMissing] = useState(false);
   const [fitScans, setFitScans] = useState<FitScanListResponse["fit_scans"]>([]);
   const [proposals, setProposals] = useState<ProposalListResponse["proposals"]>([]);
@@ -141,9 +137,9 @@ export default function DashboardPage() {
       })
       .finally(markDone);
 
-    void apiRequest<ProfileCompletenessResponse>("/api/ngo-profile/completeness", { method: "GET" })
+    void fetchCompleteness()
       .then((response) => {
-        setProfileMissing(false);
+        setProfileMissing(response.profile_status === "DRAFT" && response.completeness_score === 0);
         setCompleteness(response);
       })
       .catch((error: unknown) => {

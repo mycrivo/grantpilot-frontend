@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { NgoPastProject } from "@/lib/api/ngoProfile";
+import type { PastProject as NgoPastProject } from "@/lib/profile-types";
 
 type PastProjectCardProps = {
   index: number;

@@ -1,4 +1,4 @@
-import type { NgoProfileCompleteness } from "@/lib/api/ngoProfile";
+import type { ProfileCompleteness as NgoProfileCompleteness } from "@/lib/profile-types";
 
 type CompletenessBarProps = {
   completeness: NgoProfileCompleteness | null;

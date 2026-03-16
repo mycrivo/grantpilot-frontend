@@ -5,16 +5,19 @@ import { useRouter } from "next/navigation";
 
 import { ApiClientError } from "@/lib/api-client";
 import {
-  createNgoProfile,
-  getNgoProfile,
-  getNgoProfileCompleteness,
   type FocusSector,
-  type NgoPastProject,
+  type PastProject as NgoPastProject,
   type NgoProfile,
-  type NgoProfileResponse,
-  type NgoProfileCompleteness,
-  updateNgoProfile,
-} from "@/lib/api/ngoProfile";
+  type ProfileCompleteness as NgoProfileCompleteness,
+  type ProfileSavePayload,
+} from "@/lib/profile-types";
+import {
+  ProfileNotFoundError,
+  createProfile,
+  fetchCompleteness,
+  fetchProfile,
+  updateProfile,
+} from "@/lib/profile-service";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { CompletenessBar } from "@/components/profile/CompletenessBar";
@@ -53,6 +56,9 @@ const defaultProfile = (): NgoProfile => ({
   annual_budget_currency: null,
   monitoring_and_evaluation_practices: null,
   funders_worked_with_before: [],
+  profile_status: "DRAFT",
+  completeness_score: 0,
+  missing_fields: [],
 });
 
 const focusSectors: FocusSector[] = [
@@ -163,17 +169,17 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         let exists = false;
 
         try {
-          const response = await getNgoProfile();
+          const response = await fetchProfile();
           loadedProfile = {
-            ...response.ngo_profile,
+            ...response,
             past_projects:
-              response.ngo_profile.past_projects.length > 0
-                ? response.ngo_profile.past_projects
+              response.past_projects.length > 0
+                ? response.past_projects
                 : [emptyProject()],
           };
           exists = true;
         } catch (loadError) {
-          if (!(loadError instanceof ApiClientError) || loadError.status !== 404) {
+          if (!(loadError instanceof ProfileNotFoundError)) {
             throw loadError;
           }
         }
@@ -184,7 +190,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
         // Completeness is secondary; profile editing should still work if this call fails.
         try {
-          const completenessResponse = await getNgoProfileCompleteness();
+          const completenessResponse = await fetchCompleteness();
           setCompleteness(completenessResponse);
         } catch {
           setCompleteness(null);
@@ -235,7 +241,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     setSaving(true);
     setError(null);
     try {
-      const payload: NgoProfile = {
+      const payload: ProfileSavePayload = {
         ...profile,
         organization_name: profile.organization_name.trim(),
         country_of_registration: profile.country_of_registration.trim(),
@@ -254,15 +260,15 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         })),
       };
 
-      let response: NgoProfileResponse;
+      let response: NgoProfile;
       if (profileExists) {
-        response = await updateNgoProfile(payload);
+        response = await updateProfile(payload);
       } else {
         try {
-          response = await createNgoProfile(payload);
+          response = await createProfile(payload);
         } catch (createError) {
           if (createError instanceof ApiClientError && createError.status === 409) {
-            response = await updateNgoProfile(payload);
+            response = await updateProfile(payload);
           } else {
             throw createError;
           }
@@ -270,10 +276,10 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       }
 
       const nextProfile: NgoProfile = {
-        ...response.ngo_profile,
+        ...response,
         past_projects:
-          response.ngo_profile.past_projects.length > 0
-            ? response.ngo_profile.past_projects
+          response.past_projects.length > 0
+            ? response.past_projects
             : [emptyProject()],
       };
 
@@ -283,7 +289,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
       let nextCompleteness: NgoProfileCompleteness | null = null;
       try {
-        nextCompleteness = await getNgoProfileCompleteness();
+        nextCompleteness = await fetchCompleteness();
         setCompleteness(nextCompleteness);
       } catch {
         // Save has already succeeded; keep UI stable if completeness refresh fails.

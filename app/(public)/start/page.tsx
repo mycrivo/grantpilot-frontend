@@ -11,7 +11,9 @@ import { UpgradeNudge } from "@/components/shared/UpgradeNudge";
 import { UpgradeWall } from "@/components/shared/UpgradeWall";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { storeOpportunityIntent } from "@/lib/auth-intent";
+import { fetchCompleteness } from "@/lib/profile-service";
 import { type Plan } from "@/lib/plans";
+import type { ProfileCompleteness as NgoProfileCompleteness } from "@/lib/profile-types";
 
 type StartStep = "parse" | "auth" | "opportunity" | "completeness" | "quota" | "create_fit_scan";
 
@@ -22,10 +24,6 @@ type FundingOpportunityResponse = {
     donor_organization: string;
     is_active: boolean;
   };
-};
-
-type NgoProfileCompleteness = {
-  profile_status: "DRAFT" | "COMPLETE";
 };
 
 type EntitlementsResponse = {
@@ -222,7 +220,7 @@ function StartPageClient() {
       setDonorName(opportunityPayload.funding_opportunity.donor_organization);
 
       setStep("completeness");
-      const completeness = await apiRequest<NgoProfileCompleteness>("/api/ngo-profile/completeness", { method: "GET" });
+      const completeness: NgoProfileCompleteness = await fetchCompleteness();
       if (completeness.profile_status === "DRAFT") {
         router.replace(
           `/profile?from=start&opportunity_id=${encodeURIComponent(opportunityId)}&message=${encodeURIComponent(
