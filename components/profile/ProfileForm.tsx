@@ -202,6 +202,25 @@ function extractFieldErrors(details: unknown): FieldErrors {
   return mapped;
 }
 
+function presentText(value: string | null | undefined) {
+  if (!value) {
+    return "Not provided";
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : "Not provided";
+}
+
+function presentNumber(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "Not provided";
+}
+
+function presentList(values: string[] | null | undefined) {
+  if (!values || values.length === 0) {
+    return [];
+  }
+  return values.filter((item) => item.trim().length > 0);
+}
+
 export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   const router = useRouter();
   const [pageState, setPageState] = useState<ProfilePageState>({ mode: "LOADING" });
@@ -213,6 +232,9 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const syncedSnapshot = useRef(snapshot(defaultProfile()));
+  const completeModeSnapshotRef = useRef<{ profile: NgoProfile; completeness: NgoProfileCompleteness | null } | null>(
+    null,
+  );
 
   const isDirty = useMemo(() => snapshot(formProfile) !== syncedSnapshot.current, [formProfile]);
   const isCreateMode = pageState.mode === "NO_PROFILE";
@@ -249,14 +271,21 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
       setPageState(
         profile.profile_status === "COMPLETE"
-          ? { mode: "COMPLETE", profile: normalizedProfile, completeness }
-          : { mode: "DRAFT", profile: normalizedProfile, completeness },
+          ? (() => {
+              completeModeSnapshotRef.current = { profile: normalizedProfile, completeness };
+              return { mode: "COMPLETE", profile: normalizedProfile, completeness } as const;
+            })()
+          : (() => {
+              completeModeSnapshotRef.current = null;
+              return { mode: "DRAFT", profile: normalizedProfile, completeness } as const;
+            })(),
       );
     } catch (loadError) {
       if (loadError instanceof ProfileNotFoundError) {
         const empty = defaultProfile();
         setFormProfile(empty);
         syncedSnapshot.current = snapshot(empty);
+        completeModeSnapshotRef.current = null;
         setPageState({ mode: "NO_PROFILE" });
         return;
       }
@@ -384,6 +413,11 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       }
 
       const nextMode: "DRAFT" | "COMPLETE" = response.profile_status === "COMPLETE" ? "COMPLETE" : "DRAFT";
+      if (nextMode === "COMPLETE") {
+        completeModeSnapshotRef.current = { profile: nextProfile, completeness: nextCompleteness };
+      } else {
+        completeModeSnapshotRef.current = null;
+      }
       setPageState({ mode: nextMode, profile: nextProfile, completeness: nextCompleteness });
       setFieldErrors({});
       setSaveError(null);
@@ -438,6 +472,44 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     }
   };
 
+  const startEditing = () => {
+    if (pageState.mode !== "COMPLETE") {
+      return;
+    }
+    setPageState({ mode: "EDITING", profile: formProfile, completeness: pageState.completeness });
+    setSaveError(null);
+    setFieldErrors({});
+    setSavedMessage(null);
+  };
+
+  const cancelEditing = () => {
+    if (pageState.mode !== "EDITING") {
+      return;
+    }
+    if (isDirty) {
+      const confirmed = window.confirm("Discard your unsaved changes?");
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    const snapshotData = completeModeSnapshotRef.current;
+    if (!snapshotData) {
+      return;
+    }
+
+    setFormProfile(snapshotData.profile);
+    syncedSnapshot.current = snapshot(snapshotData.profile);
+    setFieldErrors({});
+    setSaveError(null);
+    setSavedMessage(null);
+    setPageState({
+      mode: "COMPLETE",
+      profile: snapshotData.profile,
+      completeness: snapshotData.completeness,
+    });
+  };
+
   if (pageState.mode === "LOADING") {
     return <LoadingSkeleton variant="page" lines={6} />;
   }
@@ -451,12 +523,167 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   }
 
   const profile = formProfile;
+  const budgetDisplay =
+    typeof profile.annual_budget_amount === "number"
+      ? `${profile.annual_budget_currency ?? ""} ${profile.annual_budget_amount}`.trim()
+      : "Not provided";
+  const focusSectorItems = presentList(profile.focus_sectors as string[]);
+  const areaItems = presentList(profile.geographic_areas_of_work);
+  const targetItems = presentList(profile.target_groups);
+  const funderItems = presentList(profile.funders_worked_with_before);
   const completeness =
     pageState.mode === "NO_PROFILE"
       ? NO_PROFILE_COMPLETENESS
       : pageState.mode === "DRAFT" || pageState.mode === "COMPLETE" || pageState.mode === "EDITING"
         ? pageState.completeness
         : null;
+
+  if (pageState.mode === "COMPLETE") {
+    return (
+      <section className="space-y-6">
+        {toast ? (
+          <div
+            className={`fixed right-4 top-4 z-50 rounded-[10px] border px-4 py-3 text-sm font-medium shadow-lg ${
+              toast.tone === "success"
+                ? "border-brand-success/30 bg-brand-success/10 text-brand-success"
+                : "border-brand-error/30 bg-brand-error/10 text-brand-error"
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {toast.message}
+          </div>
+        ) : null}
+
+        <CompletenessBar completeness={completeness} />
+
+        {savedMessage ? (
+          <div className="card border-brand-success/30 bg-brand-success/5">
+            <p className="text-sm font-medium text-brand-success">{savedMessage}</p>
+          </div>
+        ) : null}
+
+        <div className="card space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <h3>Your Organisation Profile</h3>
+              <p className="text-secondary">Keep your profile current for the best fit scan results.</p>
+            </div>
+            <button type="button" className="btn-primary" onClick={startEditing}>
+              Edit Profile
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <h4>Section 1: Organisation Identity</h4>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div><p className="text-xs text-secondary">Organisation Name</p><p>{presentText(profile.organization_name)}</p></div>
+              <div><p className="text-xs text-secondary">Country of Registration</p><p>{presentText(profile.country_of_registration)}</p></div>
+              <div><p className="text-xs text-secondary">Year of Establishment</p><p>{presentNumber(profile.year_of_establishment)}</p></div>
+              <div><p className="text-xs text-secondary">Website</p><p>{presentText(profile.website)}</p></div>
+              <div><p className="text-xs text-secondary">Contact Person</p><p>{presentText(profile.contact_person_name)}</p></div>
+              <div><p className="text-xs text-secondary">Contact Email</p><p>{presentText(profile.contact_email)}</p></div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h4>Section 2: Mission &amp; Focus</h4>
+            <div>
+              <p className="text-xs text-secondary">Mission Statement</p>
+              <p className="mt-1 whitespace-pre-wrap">{presentText(profile.mission_statement)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-secondary">Focus Sectors</p>
+              {focusSectorItems.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {focusSectorItems.map((item) => (
+                    <span key={item} className="rounded-full border border-brand-border px-3 py-1 text-sm">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1">Not provided</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-secondary">Geographic Areas of Work</p>
+              {areaItems.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {areaItems.map((item) => (
+                    <span key={item} className="rounded-full border border-brand-border px-3 py-1 text-sm">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1">Not provided</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-secondary">Target Groups</p>
+              {targetItems.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {targetItems.map((item) => (
+                    <span key={item} className="rounded-full border border-brand-border px-3 py-1 text-sm">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1">Not provided</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h4>Section 3: Track Record</h4>
+            {profile.past_projects.length > 0 ? (
+              <div className="space-y-3">
+                {profile.past_projects.map((project, index) => (
+                  <div key={`${project.id ?? "project"}-${index}`} className="rounded-[10px] border border-brand-border p-4">
+                    <p className="font-semibold">{presentText(project.title)}</p>
+                    <p className="text-sm text-secondary">Donor: {presentText(project.donor)}</p>
+                    <p className="text-sm text-secondary">Duration: {presentText(project.duration)}</p>
+                    <p className="text-sm text-secondary">Location: {presentText(project.location)}</p>
+                    <p className="mt-2 text-sm">{presentText(project.summary)}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>Not provided</p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <h4>Section 4: Capacity</h4>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div><p className="text-xs text-secondary">Full-Time Staff</p><p>{presentNumber(profile.full_time_staff)}</p></div>
+              <div><p className="text-xs text-secondary">Annual Budget</p><p>{budgetDisplay}</p></div>
+            </div>
+            <div>
+              <p className="text-xs text-secondary">M&amp;E Practices</p>
+              <p className="mt-1 whitespace-pre-wrap">{presentText(profile.monitoring_and_evaluation_practices)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-secondary">Previous Funders</p>
+              {funderItems.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {funderItems.map((item) => (
+                    <span key={item} className="rounded-full border border-brand-border px-3 py-1 text-sm">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1">Not provided</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">
@@ -763,6 +990,16 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
           <button type="button" className="btn-primary" onClick={() => void saveProfile()} disabled={saving || redirecting}>
             {saving || redirecting ? "Saving..." : isCreateMode ? "Save Profile" : "Update Profile"}
           </button>
+          {pageState.mode === "EDITING" ? (
+            <button
+              type="button"
+              className="h-11 rounded-[8px] border border-brand-border bg-brand-card-bg px-4 text-sm font-semibold text-brand-text-primary"
+              onClick={cancelEditing}
+              disabled={saving || redirecting}
+            >
+              Cancel
+            </button>
+          ) : null}
           {isDirty ? <p className="text-secondary">You have unsaved changes.</p> : null}
         </div>
       </div>
