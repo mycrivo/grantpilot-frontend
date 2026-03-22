@@ -132,26 +132,23 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function isValidWebsite(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
+function normalizeWebsiteForSave(value: string | null | undefined) {
+  const normalized = normalizeNullable(value ?? "");
+  if (!normalized) {
+    return null;
   }
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    return normalized;
+  }
+  return `https://${normalized}`;
 }
 
 function validateProfile(profile: NgoProfile): FieldErrors {
   const errors: FieldErrors = {};
   const email = profile.contact_email?.trim();
-  const website = profile.website?.trim();
 
   if (email && !isValidEmail(email)) {
     errors.contact_email = "Enter a valid email address.";
-  }
-
-  if (website && !isValidWebsite(website)) {
-    errors.website = "Enter a valid website URL (include http:// or https://).";
   }
 
   if (profile.year_of_establishment !== null) {
@@ -412,7 +409,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         mission_statement: formProfile.mission_statement.trim(),
         contact_person_name: normalizeNullable(formProfile.contact_person_name ?? ""),
         contact_email: normalizeNullable(formProfile.contact_email ?? ""),
-        website: normalizeNullable(formProfile.website ?? ""),
+        website: normalizeWebsiteForSave(formProfile.website),
         monitoring_and_evaluation_practices: normalizeNullable(formProfile.monitoring_and_evaluation_practices ?? ""),
         annual_budget_amount: normalizedAnnualBudgetAmount,
         annual_budget_currency: normalizedAnnualBudgetCurrency,

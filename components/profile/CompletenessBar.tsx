@@ -17,7 +17,6 @@ export function CompletenessBar({ completeness }: CompletenessBarProps) {
   }
 
   const percent = Math.max(0, Math.min(100, completeness?.completeness_score ?? 0));
-  const missing = completeness?.missing_fields ?? [];
   const isComplete = completeness?.profile_status === "COMPLETE";
 
   return (
@@ -33,12 +32,6 @@ export function CompletenessBar({ completeness }: CompletenessBarProps) {
             style={{ width: `${percent}%` }}
           />
         </div>
-        {!isComplete && missing.length > 0 ? (
-          <div className="mt-3">
-            <p className="text-secondary">Missing required fields:</p>
-            <p className="mt-1 text-sm text-brand-text-primary">{missing.join(", ")}</p>
-          </div>
-        ) : null}
       </div>
     </div>
   );

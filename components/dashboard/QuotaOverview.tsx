@@ -26,10 +26,20 @@ type QuotaOverviewProps = {
 };
 
 function toPercent(used: number, limit: number) {
+  if (!Number.isFinite(used) || !Number.isFinite(limit)) {
+    return 0;
+  }
   if (limit <= 0) {
     return 0;
   }
   return Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
+}
+
+function usageLabel(quota: QuotaBlock) {
+  if (!Number.isFinite(quota.used) || !Number.isFinite(quota.limit)) {
+    return "—";
+  }
+  return `${quota.used} / ${quota.limit} used`;
 }
 
 function relativeResetLabel(resetAt: string | null) {
@@ -79,7 +89,7 @@ function QuotaBar({
       <div className="flex items-center justify-between gap-2">
         <h4>{title}</h4>
         <span className="text-sm text-secondary">
-          {quota.used} / {quota.limit} used
+          {usageLabel(quota)}
         </span>
       </div>
       <div className="mt-3 h-2 rounded-full bg-brand-divider">

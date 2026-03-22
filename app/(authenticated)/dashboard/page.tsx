@@ -203,7 +203,7 @@ export default function DashboardPage() {
     completeness?.profile_status === "DRAFT" &&
     completeness.completeness_score === 0 &&
     NO_PROFILE_MISSING_FIELDS.every((field) => completeness.missing_fields.includes(field));
-  const isProfileIncomplete = completeness?.profile_status === "DRAFT" && !isNoProfile;
+  const profileStatusMode = !completeness ? null : isNoProfile ? "NO_PROFILE" : completeness.profile_status;
   const hasFitScans = fitScans.length > 0;
   const hasProposals = proposals.length > 0;
   const suggestedFitScan =
@@ -231,7 +231,7 @@ export default function DashboardPage() {
       ) : completeness ? (
         <section
           className={`card space-y-3 ${
-            completeness.profile_status === "COMPLETE"
+            profileStatusMode === "COMPLETE"
               ? "border-brand-success/30 bg-brand-success/5"
               : "border-brand-warning/30 bg-brand-warning/5"
           }`}
@@ -244,53 +244,34 @@ export default function DashboardPage() {
               style={{ width: `${Math.max(0, Math.min(100, completeness.completeness_score))}%` }}
             />
           </div>
-          {completeness.profile_status === "COMPLETE" ? (
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-brand-success">Profile complete ✓</p>
-              <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
-                View profile
-              </Link>
+          {profileStatusMode === "COMPLETE" ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-brand-success">Your profile is ready.</p>
+              <a
+                href="https://ngoinfo.org"
+                target="_blank"
+                rel="noreferrer"
+                className="btn-primary inline-flex w-fit items-center"
+              >
+                Browse Opportunities on NGOInfo.org
+              </a>
             </div>
-          ) : isNoProfile ? (
+          ) : profileStatusMode === "NO_PROFILE" ? (
             <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
               Create your profile to get started →
             </Link>
           ) : (
-            <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
-              Complete your profile →
-            </Link>
+            <div className="space-y-2">
+              <p className="text-sm text-secondary">Complete your profile to unlock accurate fit checks.</p>
+              <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
+                Complete your profile →
+              </Link>
+            </div>
           )}
         </section>
       ) : null}
 
-      {!completenessError && (isProfileIncomplete || isNoProfile) ? (
-        <section className="card space-y-3 border-brand-warning/30 bg-brand-warning/5">
-          <h3>{isNoProfile ? "Create your profile to get started" : "Complete your profile to get started"}</h3>
-          <p className="text-secondary">Finish your profile so GrantPilot can evaluate funding fit accurately.</p>
-          <Link href="/profile" className="btn-primary inline-flex w-fit items-center">
-            {isNoProfile ? "Create Profile" : "Complete Profile"}
-          </Link>
-        </section>
-      ) : null}
-
-      {!completenessError && !isProfileIncomplete && !hasFitScans ? (
-        <section className="card space-y-3">
-          <h3>Your profile is ready.</h3>
-          <p className="text-secondary">
-            Find a funding opportunity on NGOInfo.org and check your fit.
-          </p>
-          <a
-            href="https://ngoinfo.org"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-primary inline-flex w-fit items-center"
-          >
-            Browse Opportunities on NGOInfo.org
-          </a>
-        </section>
-      ) : null}
-
-      {!completenessError && !isProfileIncomplete && hasFitScans && !hasProposals ? (
+      {!completenessError && profileStatusMode === "COMPLETE" && hasFitScans && !hasProposals ? (
         <section className="card space-y-3">
           <h3>You have fit scan results.</h3>
           <p className="text-secondary">Draft your first proposal.</p>
