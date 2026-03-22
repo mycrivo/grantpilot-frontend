@@ -5,6 +5,17 @@ type CompletenessBarProps = {
 };
 
 export function CompletenessBar({ completeness }: CompletenessBarProps) {
+  if (!completeness) {
+    return (
+      <div className="sticky top-4 z-10">
+        <div className="card border-brand-border/60 bg-brand-card-bg">
+          <h4>Profile completeness unavailable</h4>
+          <p className="mt-2 text-secondary">Unable to load completeness right now.</p>
+        </div>
+      </div>
+    );
+  }
+
   const percent = Math.max(0, Math.min(100, completeness?.completeness_score ?? 0));
   const missing = completeness?.missing_fields ?? [];
   const isComplete = completeness?.profile_status === "COMPLETE";

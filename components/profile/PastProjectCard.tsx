@@ -9,9 +9,10 @@ type PastProjectCardProps = {
   project: NgoPastProject;
   onChange: (next: NgoPastProject) => void;
   onRemove: () => void;
+  errors?: Partial<Record<"title" | "donor" | "duration" | "location" | "summary", string>>;
 };
 
-export function PastProjectCard({ index, project, onChange, onRemove }: PastProjectCardProps) {
+export function PastProjectCard({ index, project, onChange, onRemove, errors }: PastProjectCardProps) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -41,6 +42,7 @@ export function PastProjectCard({ index, project, onChange, onRemove }: PastProj
               onChange={(event) => onChange({ ...project, title: event.target.value })}
               className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
             />
+            {errors?.title ? <p className="mt-1 text-sm text-brand-error">{errors.title}</p> : null}
           </div>
           <div>
             <label className="block text-sm font-medium text-brand-text-primary">Donor/Funder</label>
@@ -49,6 +51,7 @@ export function PastProjectCard({ index, project, onChange, onRemove }: PastProj
               onChange={(event) => onChange({ ...project, donor: event.target.value || null })}
               className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
             />
+            {errors?.donor ? <p className="mt-1 text-sm text-brand-error">{errors.donor}</p> : null}
           </div>
           <div>
             <label className="block text-sm font-medium text-brand-text-primary">Duration</label>
@@ -57,6 +60,7 @@ export function PastProjectCard({ index, project, onChange, onRemove }: PastProj
               onChange={(event) => onChange({ ...project, duration: event.target.value || null })}
               className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
             />
+            {errors?.duration ? <p className="mt-1 text-sm text-brand-error">{errors.duration}</p> : null}
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-brand-text-primary">Location</label>
@@ -65,6 +69,7 @@ export function PastProjectCard({ index, project, onChange, onRemove }: PastProj
               onChange={(event) => onChange({ ...project, location: event.target.value || null })}
               className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
             />
+            {errors?.location ? <p className="mt-1 text-sm text-brand-error">{errors.location}</p> : null}
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-brand-text-primary">Summary</label>
@@ -74,6 +79,7 @@ export function PastProjectCard({ index, project, onChange, onRemove }: PastProj
               rows={3}
               className="mt-1 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-2 text-[14px] outline-none focus:border-brand-primary"
             />
+            {errors?.summary ? <p className="mt-1 text-sm text-brand-error">{errors.summary}</p> : null}
           </div>
         </div>
       ) : null}

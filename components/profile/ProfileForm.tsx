@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiClientError } from "@/lib/api-client";
-import {
-  type FocusSector,
-  type PastProject as NgoPastProject,
-  type NgoProfile,
-  type ProfileCompleteness as NgoProfileCompleteness,
-  type ProfileSavePayload,
+import type {
+  FocusSector,
+  NgoProfile,
+  PastProject as NgoPastProject,
+  ProfileCompleteness as NgoProfileCompleteness,
+  ProfileSavePayload,
 } from "@/lib/profile-types";
 import {
   ProfileNotFoundError,
@@ -29,7 +29,17 @@ type ProfileFormProps = {
   opportunityId?: string;
 };
 
-type FieldErrors = Partial<Record<"contact_email" | "website" | "year_of_establishment", string>>;
+type ProfilePageState =
+  | { mode: "LOADING" }
+  | { mode: "NO_PROFILE" }
+  | { mode: "DRAFT"; profile: NgoProfile; completeness: NgoProfileCompleteness | null }
+  | { mode: "COMPLETE"; profile: NgoProfile; completeness: NgoProfileCompleteness | null }
+  | { mode: "EDITING"; profile: NgoProfile; completeness: NgoProfileCompleteness | null }
+  | { mode: "RECOVERABLE_ERROR"; error: string }
+  | { mode: "SAVE_ERROR"; error: string; fieldErrors?: Record<string, string> };
+
+type SaveErrorState = Extract<ProfilePageState, { mode: "SAVE_ERROR" }>;
+type FieldErrors = Record<string, string>;
 
 const emptyProject = (): NgoPastProject => ({
   title: "",
@@ -60,6 +70,20 @@ const defaultProfile = (): NgoProfile => ({
   completeness_score: 0,
   missing_fields: [],
 });
+
+const NO_PROFILE_COMPLETENESS: NgoProfileCompleteness = {
+  profile_status: "DRAFT",
+  completeness_score: 0,
+  missing_fields: [
+    "organization_name",
+    "country_of_registration",
+    "mission_statement",
+    "focus_sectors",
+    "geographic_areas_of_work",
+    "target_groups",
+    "past_projects",
+  ],
+};
 
 const focusSectors: FocusSector[] = [
   "EDUCATION",
@@ -123,7 +147,11 @@ function validateProfile(profile: NgoProfile): FieldErrors {
 
   if (profile.year_of_establishment !== null) {
     const currentYear = new Date().getFullYear();
-    if (!Number.isInteger(profile.year_of_establishment) || profile.year_of_establishment < 1800 || profile.year_of_establishment > currentYear) {
+    if (
+      !Number.isInteger(profile.year_of_establishment) ||
+      profile.year_of_establishment < 1800 ||
+      profile.year_of_establishment > currentYear
+    ) {
       errors.year_of_establishment = `Enter a valid year between 1800 and ${currentYear}.`;
     }
   }
@@ -135,22 +163,59 @@ function snapshot(profile: NgoProfile) {
   return JSON.stringify(profile);
 }
 
+function toFieldKey(loc: unknown): string | null {
+  if (!Array.isArray(loc)) {
+    return null;
+  }
+  const segments = [...loc];
+  if (segments[0] === "body") {
+    segments.shift();
+  }
+  if (segments.length === 0) {
+    return null;
+  }
+  return segments.map((segment) => String(segment)).join(".");
+}
+
+function extractFieldErrors(details: unknown): FieldErrors {
+  if (!details || typeof details !== "object") {
+    return {};
+  }
+  const maybeErrors = (details as { errors?: unknown }).errors;
+  if (!Array.isArray(maybeErrors)) {
+    return {};
+  }
+
+  const mapped: FieldErrors = {};
+  for (const item of maybeErrors) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const record = item as { loc?: unknown; msg?: unknown };
+    const key = toFieldKey(record.loc);
+    if (!key || typeof record.msg !== "string" || mapped[key]) {
+      continue;
+    }
+    mapped[key] = record.msg;
+  }
+
+  return mapped;
+}
+
 export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [pageState, setPageState] = useState<ProfilePageState>({ mode: "LOADING" });
+  const [formProfile, setFormProfile] = useState<NgoProfile>(defaultProfile());
   const [saving, setSaving] = useState(false);
-  const [profileExists, setProfileExists] = useState(false);
-  const [profile, setProfile] = useState<NgoProfile>(defaultProfile());
-  const [completeness, setCompleteness] = useState<NgoProfileCompleteness | null>(null);
-  const [error, setError] = useState<ApiClientError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [saveError, setSaveError] = useState<SaveErrorState | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const syncedSnapshot = useRef(snapshot(defaultProfile()));
 
-  const isDirty = useMemo(() => snapshot(profile) !== syncedSnapshot.current, [profile]);
-  const isCreateMode = !profileExists;
+  const isDirty = useMemo(() => snapshot(formProfile) !== syncedSnapshot.current, [formProfile]);
+  const isCreateMode = pageState.mode === "NO_PROFILE";
 
   useEffect(() => {
     if (!toast) {
@@ -160,54 +225,60 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
+  const loadProfile = useCallback(async () => {
+    setPageState({ mode: "LOADING" });
+    setFieldErrors({});
+    setSaveError(null);
+    setSavedMessage(null);
+
+    try {
+      const profile = await fetchProfile();
+      const normalizedProfile: NgoProfile = {
+        ...profile,
+        past_projects: profile.past_projects.length > 0 ? profile.past_projects : [emptyProject()],
+      };
+      setFormProfile(normalizedProfile);
+      syncedSnapshot.current = snapshot(normalizedProfile);
+
+      let completeness: NgoProfileCompleteness | null = null;
       try {
-        let loadedProfile = defaultProfile();
-        let exists = false;
-
-        try {
-          const response = await fetchProfile();
-          loadedProfile = {
-            ...response,
-            past_projects:
-              response.past_projects.length > 0
-                ? response.past_projects
-                : [emptyProject()],
-          };
-          exists = true;
-        } catch (loadError) {
-          if (!(loadError instanceof ProfileNotFoundError)) {
-            throw loadError;
-          }
-        }
-
-        setProfile(loadedProfile);
-        setProfileExists(exists);
-        syncedSnapshot.current = snapshot(loadedProfile);
-
-        // Completeness is secondary; profile editing should still work if this call fails.
-        try {
-          const completenessResponse = await fetchCompleteness();
-          setCompleteness(completenessResponse);
-        } catch {
-          setCompleteness(null);
-        }
-      } catch (loadError) {
-        if (loadError instanceof ApiClientError) {
-          setError(loadError);
-        } else {
-          setError(new ApiClientError(500, "We couldn't load your profile right now."));
-        }
-      } finally {
-        setLoading(false);
+        completeness = await fetchCompleteness();
+      } catch {
+        completeness = null;
       }
-    };
 
-    void load();
+      setPageState(
+        profile.profile_status === "COMPLETE"
+          ? { mode: "COMPLETE", profile: normalizedProfile, completeness }
+          : { mode: "DRAFT", profile: normalizedProfile, completeness },
+      );
+    } catch (loadError) {
+      if (loadError instanceof ProfileNotFoundError) {
+        const empty = defaultProfile();
+        setFormProfile(empty);
+        syncedSnapshot.current = snapshot(empty);
+        setPageState({ mode: "NO_PROFILE" });
+        return;
+      }
+
+      if (loadError instanceof ApiClientError || loadError instanceof TypeError) {
+        setPageState({
+          mode: "RECOVERABLE_ERROR",
+          error: "We're experiencing a temporary issue. Please try again shortly.",
+        });
+        return;
+      }
+
+      setPageState({
+        mode: "RECOVERABLE_ERROR",
+        error: "An unexpected error occurred. Please refresh the page.",
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
 
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
@@ -222,8 +293,26 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
+  const applyProfileChange = useCallback((mutator: (prev: NgoProfile) => NgoProfile) => {
+    setFormProfile((prev) => {
+      const next = mutator(prev);
+      setPageState((current) => {
+        if (current.mode === "COMPLETE") {
+          return { mode: "EDITING", profile: next, completeness: current.completeness };
+        }
+        if (current.mode === "DRAFT" || current.mode === "EDITING") {
+          return { ...current, profile: next };
+        }
+        return current;
+      });
+      return next;
+    });
+    setSaveError(null);
+    setSavedMessage(null);
+  }, []);
+
   const updateProject = (index: number, nextProject: NgoPastProject) => {
-    setProfile((prev) => {
+    applyProfileChange((prev) => {
       const nextProjects = [...prev.past_projects];
       nextProjects[index] = nextProject;
       return { ...prev, past_projects: nextProjects };
@@ -231,27 +320,32 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   };
 
   const saveProfile = async () => {
+    if (pageState.mode === "LOADING" || pageState.mode === "RECOVERABLE_ERROR") {
+      return;
+    }
+
     setSavedMessage(null);
-    const validationErrors = validateProfile(profile);
+    const validationErrors = validateProfile(formProfile);
     setFieldErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) {
+      setSaveError({ mode: "SAVE_ERROR", error: "Some fields need attention.", fieldErrors: validationErrors });
       return;
     }
 
     setSaving(true);
-    setError(null);
+    setSaveError(null);
     try {
       const payload: ProfileSavePayload = {
-        ...profile,
-        organization_name: profile.organization_name.trim(),
-        country_of_registration: profile.country_of_registration.trim(),
-        mission_statement: profile.mission_statement.trim(),
-        contact_person_name: normalizeNullable(profile.contact_person_name ?? ""),
-        contact_email: normalizeNullable(profile.contact_email ?? ""),
-        website: normalizeNullable(profile.website ?? ""),
-        monitoring_and_evaluation_practices: normalizeNullable(profile.monitoring_and_evaluation_practices ?? ""),
-        annual_budget_currency: normalizeNullable(profile.annual_budget_currency ?? ""),
-        past_projects: profile.past_projects.map((project) => ({
+        ...formProfile,
+        organization_name: formProfile.organization_name.trim(),
+        country_of_registration: formProfile.country_of_registration.trim(),
+        mission_statement: formProfile.mission_statement.trim(),
+        contact_person_name: normalizeNullable(formProfile.contact_person_name ?? ""),
+        contact_email: normalizeNullable(formProfile.contact_email ?? ""),
+        website: normalizeNullable(formProfile.website ?? ""),
+        monitoring_and_evaluation_practices: normalizeNullable(formProfile.monitoring_and_evaluation_practices ?? ""),
+        annual_budget_currency: normalizeNullable(formProfile.annual_budget_currency ?? ""),
+        past_projects: formProfile.past_projects.map((project) => ({
           title: project.title.trim(),
           donor: normalizeNullable(project.donor ?? ""),
           duration: normalizeNullable(project.duration ?? ""),
@@ -261,9 +355,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       };
 
       let response: NgoProfile;
-      if (profileExists) {
-        response = await updateProfile(payload);
-      } else {
+      if (pageState.mode === "NO_PROFILE") {
         try {
           response = await createProfile(payload);
         } catch (createError) {
@@ -273,36 +365,37 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
             throw createError;
           }
         }
+      } else {
+        response = await updateProfile(payload);
       }
 
       const nextProfile: NgoProfile = {
         ...response,
-        past_projects:
-          response.past_projects.length > 0
-            ? response.past_projects
-            : [emptyProject()],
+        past_projects: response.past_projects.length > 0 ? response.past_projects : [emptyProject()],
       };
-
-      setProfile(nextProfile);
-      setProfileExists(true);
+      setFormProfile(nextProfile);
       syncedSnapshot.current = snapshot(nextProfile);
 
       let nextCompleteness: NgoProfileCompleteness | null = null;
       try {
         nextCompleteness = await fetchCompleteness();
-        setCompleteness(nextCompleteness);
       } catch {
-        // Save has already succeeded; keep UI stable if completeness refresh fails.
+        nextCompleteness = null;
       }
 
+      const nextMode: "DRAFT" | "COMPLETE" = response.profile_status === "COMPLETE" ? "COMPLETE" : "DRAFT";
+      setPageState({ mode: nextMode, profile: nextProfile, completeness: nextCompleteness });
+      setFieldErrors({});
+      setSaveError(null);
+
       const successMessage =
-        nextCompleteness?.profile_status === "COMPLETE"
+        response.profile_status === "COMPLETE"
           ? "Profile complete — you can now run Fit Scans"
           : "Profile saved — complete the remaining fields to unlock Fit Scans";
       setSavedMessage(successMessage);
       setToast({ tone: "success", message: successMessage });
 
-      if (fromStart && opportunityId && nextCompleteness?.profile_status === "COMPLETE") {
+      if (fromStart && opportunityId && response.profile_status === "COMPLETE") {
         setRedirecting(true);
         setSavedMessage("Profile complete — checking your fit now…");
         setToast({ tone: "success", message: "Profile complete — checking your fit now..." });
@@ -310,57 +403,34 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
           router.push(`/start?opportunity_id=${encodeURIComponent(opportunityId)}&source=profile`);
         }, 900);
       }
-    } catch (saveError) {
-      if (saveError instanceof ApiClientError) {
-        if (saveError.status === 422) {
-          const message = "Some profile fields are invalid. Please review your entries and try again.";
-          setError(
-            new ApiClientError(
-              422,
-              message,
-              {
-                error_code: saveError.errorCode,
-                details: saveError.details,
-                request_id: saveError.requestId,
-              },
-            ),
-          );
+    } catch (saveFailure) {
+      if (saveFailure instanceof ApiClientError) {
+        if (saveFailure.status === 422) {
+          const mapped = extractFieldErrors(saveFailure.details);
+          const message = Object.keys(mapped).length > 0 ? "Some fields need attention." : saveFailure.message;
+          setFieldErrors(mapped);
+          setSaveError({ mode: "SAVE_ERROR", error: message, fieldErrors: mapped });
           setToast({ tone: "error", message });
-        } else if (saveError.status === 401) {
+        } else if (saveFailure.status === 401) {
           const message = "Your session expired. Please sign in again.";
-          setError(
-            new ApiClientError(
-              401,
-              message,
-              {
-                error_code: saveError.errorCode,
-                details: saveError.details,
-                request_id: saveError.requestId,
-              },
-            ),
-          );
+          setSaveError({ mode: "SAVE_ERROR", error: message });
           setToast({ tone: "error", message });
-        } else if (saveError.status >= 500) {
-          const message = "We couldn't save your profile right now due to a server issue. Please try again.";
-          setError(
-            new ApiClientError(
-              saveError.status,
-              message,
-              {
-                error_code: saveError.errorCode,
-                details: saveError.details,
-                request_id: saveError.requestId,
-              },
-            ),
-          );
+        } else if (saveFailure.status >= 500) {
+          const message = "Save failed due to a temporary issue. Your changes are preserved — please try again.";
+          setSaveError({ mode: "SAVE_ERROR", error: message });
           setToast({ tone: "error", message });
         } else {
-          setError(saveError);
-          setToast({ tone: "error", message: saveError.message });
+          const message = saveFailure.status === 409 ? "Save failed. Please try again." : saveFailure.message;
+          setSaveError({ mode: "SAVE_ERROR", error: message });
+          setToast({ tone: "error", message });
         }
+      } else if (saveFailure instanceof TypeError) {
+        const message = "Unable to reach the server. Please check your connection and try again.";
+        setSaveError({ mode: "SAVE_ERROR", error: message });
+        setToast({ tone: "error", message });
       } else {
-        const message = "We couldn't save your profile right now.";
-        setError(new ApiClientError(500, message));
+        const message = "An unexpected error occurred. Please refresh the page.";
+        setSaveError({ mode: "SAVE_ERROR", error: message });
         setToast({ tone: "error", message });
       }
     } finally {
@@ -368,9 +438,25 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     }
   };
 
-  if (loading) {
+  if (pageState.mode === "LOADING") {
     return <LoadingSkeleton variant="page" lines={6} />;
   }
+
+  if (pageState.mode === "RECOVERABLE_ERROR") {
+    return (
+      <section className="space-y-6">
+        <ErrorDisplay message={pageState.error} onRetry={() => void loadProfile()} />
+      </section>
+    );
+  }
+
+  const profile = formProfile;
+  const completeness =
+    pageState.mode === "NO_PROFILE"
+      ? NO_PROFILE_COMPLETENESS
+      : pageState.mode === "DRAFT" || pageState.mode === "COMPLETE" || pageState.mode === "EDITING"
+        ? pageState.completeness
+        : null;
 
   return (
     <section className="space-y-6">
@@ -403,8 +489,6 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         </div>
       ) : null}
 
-      {error ? <ErrorDisplay error={error} onRetry={() => window.location.reload()} /> : null}
-
       <div className="card space-y-6">
         <div className="space-y-2">
           <h3>{isCreateMode ? "Create Your Organisation Profile" : "Your Organisation Profile"}</h3>
@@ -422,18 +506,24 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               <label className="block text-sm font-medium text-brand-text-primary">Organisation Name *</label>
               <input
                 value={profile.organization_name}
-                onChange={(event) => setProfile((prev) => ({ ...prev, organization_name: event.target.value }))}
+                onChange={(event) => applyProfileChange((prev) => ({ ...prev, organization_name: event.target.value }))}
                 className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
               />
+              {fieldErrors.organization_name ? <p className="mt-1 text-sm text-brand-error">{fieldErrors.organization_name}</p> : null}
             </div>
             <div>
               <label className="block text-sm font-medium text-brand-text-primary">Country of Registration *</label>
               <input
                 list="country-options"
                 value={profile.country_of_registration}
-                onChange={(event) => setProfile((prev) => ({ ...prev, country_of_registration: event.target.value }))}
+                onChange={(event) =>
+                  applyProfileChange((prev) => ({ ...prev, country_of_registration: event.target.value }))
+                }
                 className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
               />
+              {fieldErrors.country_of_registration ? (
+                <p className="mt-1 text-sm text-brand-error">{fieldErrors.country_of_registration}</p>
+              ) : null}
               <datalist id="country-options">
                 {countries.map((country) => (
                   <option key={country} value={country} />
@@ -446,20 +536,22 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
                 type="number"
                 value={profile.year_of_establishment ?? ""}
                 onChange={(event) =>
-                  setProfile((prev) => ({
+                  applyProfileChange((prev) => ({
                     ...prev,
                     year_of_establishment: event.target.value ? Number(event.target.value) : null,
                   }))
                 }
                 className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
               />
-              {fieldErrors.year_of_establishment ? <p className="mt-1 text-sm text-brand-error">{fieldErrors.year_of_establishment}</p> : null}
+              {fieldErrors.year_of_establishment ? (
+                <p className="mt-1 text-sm text-brand-error">{fieldErrors.year_of_establishment}</p>
+              ) : null}
             </div>
             <div>
               <label className="block text-sm font-medium text-brand-text-primary">Website</label>
               <input
                 value={profile.website ?? ""}
-                onChange={(event) => setProfile((prev) => ({ ...prev, website: event.target.value }))}
+                onChange={(event) => applyProfileChange((prev) => ({ ...prev, website: event.target.value }))}
                 placeholder="https://example.org"
                 className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
               />
@@ -469,7 +561,9 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               <label className="block text-sm font-medium text-brand-text-primary">Contact Person Name</label>
               <input
                 value={profile.contact_person_name ?? ""}
-                onChange={(event) => setProfile((prev) => ({ ...prev, contact_person_name: event.target.value }))}
+                onChange={(event) =>
+                  applyProfileChange((prev) => ({ ...prev, contact_person_name: event.target.value }))
+                }
                 className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
               />
             </div>
@@ -477,7 +571,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               <label className="block text-sm font-medium text-brand-text-primary">Contact Email</label>
               <input
                 value={profile.contact_email ?? ""}
-                onChange={(event) => setProfile((prev) => ({ ...prev, contact_email: event.target.value }))}
+                onChange={(event) => applyProfileChange((prev) => ({ ...prev, contact_email: event.target.value }))}
                 className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
               />
               {fieldErrors.contact_email ? <p className="mt-1 text-sm text-brand-error">{fieldErrors.contact_email}</p> : null}
@@ -492,10 +586,11 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
             <p className="text-secondary">200-500 chars recommended.</p>
             <textarea
               value={profile.mission_statement}
-              onChange={(event) => setProfile((prev) => ({ ...prev, mission_statement: event.target.value }))}
+              onChange={(event) => applyProfileChange((prev) => ({ ...prev, mission_statement: event.target.value }))}
               rows={4}
               className="mt-1 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-2 text-[14px] outline-none focus:border-brand-primary"
             />
+            {fieldErrors.mission_statement ? <p className="mt-1 text-sm text-brand-error">{fieldErrors.mission_statement}</p> : null}
           </div>
 
           <div>
@@ -513,7 +608,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
                         : "border-brand-border bg-brand-card-bg text-brand-text-primary"
                     }`}
                     onClick={() =>
-                      setProfile((prev) => ({
+                      applyProfileChange((prev) => ({
                         ...prev,
                         focus_sectors: active
                           ? prev.focus_sectors.filter((item) => item !== sector)
@@ -526,18 +621,23 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
                 );
               })}
             </div>
+            {fieldErrors.focus_sectors ? <p className="mt-1 text-sm text-brand-error">{fieldErrors.focus_sectors}</p> : null}
           </div>
 
           <TagInput
             label="Geographic Areas of Work *"
             value={profile.geographic_areas_of_work}
-            onChange={(next) => setProfile((prev) => ({ ...prev, geographic_areas_of_work: next }))}
+            onChange={(next) => applyProfileChange((prev) => ({ ...prev, geographic_areas_of_work: next }))}
           />
+          {fieldErrors.geographic_areas_of_work ? (
+            <p className="mt-1 text-sm text-brand-error">{fieldErrors.geographic_areas_of_work}</p>
+          ) : null}
           <TagInput
             label="Target Groups *"
             value={profile.target_groups}
-            onChange={(next) => setProfile((prev) => ({ ...prev, target_groups: next }))}
+            onChange={(next) => applyProfileChange((prev) => ({ ...prev, target_groups: next }))}
           />
+          {fieldErrors.target_groups ? <p className="mt-1 text-sm text-brand-error">{fieldErrors.target_groups}</p> : null}
         </div>
 
         <div className="space-y-4">
@@ -549,9 +649,16 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
                 key={`${project.id ?? "new"}-${index}`}
                 index={index}
                 project={project}
+                errors={{
+                  title: fieldErrors[`past_projects.${index}.title`],
+                  donor: fieldErrors[`past_projects.${index}.donor`],
+                  duration: fieldErrors[`past_projects.${index}.duration`],
+                  location: fieldErrors[`past_projects.${index}.location`],
+                  summary: fieldErrors[`past_projects.${index}.summary`],
+                }}
                 onChange={(nextProject) => updateProject(index, nextProject)}
                 onRemove={() =>
-                  setProfile((prev) => ({
+                  applyProfileChange((prev) => ({
                     ...prev,
                     past_projects: prev.past_projects.filter((_, itemIndex) => itemIndex !== index),
                   }))
@@ -559,12 +666,11 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               />
             ))}
           </div>
+          {fieldErrors.past_projects ? <p className="mt-1 text-sm text-brand-error">{fieldErrors.past_projects}</p> : null}
           <button
             type="button"
             className="h-11 rounded-[8px] border border-brand-border px-4 text-sm font-semibold text-brand-text-primary"
-            onClick={() =>
-              setProfile((prev) => ({ ...prev, past_projects: [...prev.past_projects, emptyProject()] }))
-            }
+            onClick={() => applyProfileChange((prev) => ({ ...prev, past_projects: [...prev.past_projects, emptyProject()] }))}
           >
             + Add another project
           </button>
@@ -579,7 +685,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
                 type="number"
                 value={profile.full_time_staff ?? ""}
                 onChange={(event) =>
-                  setProfile((prev) => ({
+                  applyProfileChange((prev) => ({
                     ...prev,
                     full_time_staff: event.target.value ? Number(event.target.value) : null,
                   }))
@@ -593,7 +699,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
                 type="number"
                 value={profile.annual_budget_amount ?? ""}
                 onChange={(event) =>
-                  setProfile((prev) => ({
+                  applyProfileChange((prev) => ({
                     ...prev,
                     annual_budget_amount: event.target.value ? Number(event.target.value) : null,
                   }))
@@ -606,7 +712,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               <select
                 value={profile.annual_budget_currency ?? ""}
                 onChange={(event) =>
-                  setProfile((prev) => ({
+                  applyProfileChange((prev) => ({
                     ...prev,
                     annual_budget_currency: event.target.value || null,
                   }))
@@ -626,20 +732,32 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               <textarea
                 value={profile.monitoring_and_evaluation_practices ?? ""}
                 onChange={(event) =>
-                  setProfile((prev) => ({ ...prev, monitoring_and_evaluation_practices: event.target.value }))
+                  applyProfileChange((prev) => ({ ...prev, monitoring_and_evaluation_practices: event.target.value }))
                 }
                 rows={3}
                 className="mt-1 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-2 text-[14px] outline-none focus:border-brand-primary"
               />
+              {fieldErrors.monitoring_and_evaluation_practices ? (
+                <p className="mt-1 text-sm text-brand-error">{fieldErrors.monitoring_and_evaluation_practices}</p>
+              ) : null}
             </div>
           </div>
 
           <TagInput
             label="Previous Funders"
             value={profile.funders_worked_with_before}
-            onChange={(next) => setProfile((prev) => ({ ...prev, funders_worked_with_before: next }))}
+            onChange={(next) => applyProfileChange((prev) => ({ ...prev, funders_worked_with_before: next }))}
           />
+          {fieldErrors.funders_worked_with_before ? (
+            <p className="mt-1 text-sm text-brand-error">{fieldErrors.funders_worked_with_before}</p>
+          ) : null}
         </div>
+
+        {saveError ? (
+          <div className="rounded-[8px] border border-brand-error/30 bg-brand-error/5 p-3">
+            <p className="text-sm font-medium text-brand-error">{saveError.error}</p>
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-3">
           <button type="button" className="btn-primary" onClick={() => void saveProfile()} disabled={saving || redirecting}>
