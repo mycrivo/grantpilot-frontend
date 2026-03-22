@@ -401,6 +401,10 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     setSaving(true);
     setSaveError(null);
     try {
+      const normalizedAnnualBudgetAmount = formProfile.annual_budget_amount;
+      const normalizedAnnualBudgetCurrency =
+        normalizedAnnualBudgetAmount === null ? null : normalizeNullable(formProfile.annual_budget_currency ?? "");
+
       const payload: ProfileSavePayload = {
         ...formProfile,
         organization_name: formProfile.organization_name.trim(),
@@ -410,7 +414,8 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         contact_email: normalizeNullable(formProfile.contact_email ?? ""),
         website: normalizeNullable(formProfile.website ?? ""),
         monitoring_and_evaluation_practices: normalizeNullable(formProfile.monitoring_and_evaluation_practices ?? ""),
-        annual_budget_currency: normalizeNullable(formProfile.annual_budget_currency ?? ""),
+        annual_budget_amount: normalizedAnnualBudgetAmount,
+        annual_budget_currency: normalizedAnnualBudgetCurrency,
         past_projects: formProfile.past_projects.map((project) => ({
           title: project.title.trim(),
           donor: normalizeNullable(project.donor ?? ""),
