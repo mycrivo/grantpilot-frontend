@@ -113,6 +113,15 @@ const countries = [
 ];
 
 const currencies = ["USD", "GBP", "EUR", "INR", "KES", "NGN", "UGX", "TZS"];
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  organization_name: "Organisation Name",
+  country_of_registration: "Country of Registration",
+  mission_statement: "Mission Statement",
+  focus_sectors: "Focus Sectors",
+  geographic_areas_of_work: "Geographic Areas of Work",
+  target_groups: "Target Groups",
+  past_projects: "Past Projects",
+};
 
 function normalizeNullable(text: string) {
   const trimmed = text.trim();
@@ -221,6 +230,28 @@ function presentList(values: string[] | null | undefined) {
   return values.filter((item) => item.trim().length > 0);
 }
 
+function relativeLastSaved(updatedAt: string, nowMs: number) {
+  const timestamp = new Date(updatedAt).getTime();
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+  const diff = Math.max(0, nowMs - timestamp);
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) {
+    return "just now";
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   const router = useRouter();
   const [pageState, setPageState] = useState<ProfilePageState>({ mode: "LOADING" });
@@ -231,6 +262,7 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const syncedSnapshot = useRef(snapshot(defaultProfile()));
   const completeModeSnapshotRef = useRef<{ profile: NgoProfile; completeness: NgoProfileCompleteness | null } | null>(
     null,
@@ -243,9 +275,14 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
     if (!toast) {
       return;
     }
-    const timer = window.setTimeout(() => setToast(null), 3500);
+    const timer = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadProfile = useCallback(async () => {
     setPageState({ mode: "LOADING" });
@@ -427,12 +464,11 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
           ? "Profile complete — you can now run Fit Scans"
           : "Profile saved — complete the remaining fields to unlock Fit Scans";
       setSavedMessage(successMessage);
-      setToast({ tone: "success", message: successMessage });
+      setToast({ tone: "success", message: "Profile saved successfully" });
 
       if (fromStart && opportunityId && response.profile_status === "COMPLETE") {
         setRedirecting(true);
         setSavedMessage("Profile complete — checking your fit now…");
-        setToast({ tone: "success", message: "Profile complete — checking your fit now..." });
         window.setTimeout(() => {
           router.push(`/start?opportunity_id=${encodeURIComponent(opportunityId)}&source=profile`);
         }, 900);
@@ -537,6 +573,28 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       : pageState.mode === "DRAFT" || pageState.mode === "COMPLETE" || pageState.mode === "EDITING"
         ? pageState.completeness
         : null;
+  const draftMissingLabels =
+    pageState.mode === "DRAFT" && completeness
+      ? completeness.missing_fields.map((field) => MISSING_FIELD_LABELS[field] ?? field)
+      : [];
+  const draftMissingCount = pageState.mode === "DRAFT" && completeness ? completeness.missing_fields.length : 0;
+  const lastSavedRelative = profile.updated_at ? relativeLastSaved(profile.updated_at, nowMs) : null;
+
+  const statusBadge =
+    pageState.mode === "NO_PROFILE"
+      ? {
+          text: "New profile",
+          className: "border-brand-border bg-brand-card-bg text-brand-text-secondary",
+        }
+      : pageState.mode === "DRAFT"
+        ? {
+            text: `Draft — ${draftMissingCount} fields missing`,
+            className: "border-brand-warning/30 bg-brand-warning/10 text-brand-warning",
+          }
+        : {
+            text: "Complete \u2713",
+            className: "border-brand-success/30 bg-brand-success/10 text-brand-success",
+          };
 
   if (pageState.mode === "COMPLETE") {
     return (
@@ -569,6 +627,9 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
               <h3>Your Organisation Profile</h3>
               <p className="text-secondary">Keep your profile current for the best fit scan results.</p>
             </div>
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge.className}`}>
+              {statusBadge.text}
+            </span>
             <button type="button" className="btn-primary" onClick={startEditing}>
               Edit Profile
             </button>
@@ -710,6 +771,12 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
         </div>
       ) : null}
 
+      {pageState.mode === "DRAFT" && draftMissingLabels.length > 0 ? (
+        <div className="card border-brand-warning/20 bg-brand-warning/5">
+          <p className="text-sm text-secondary">Missing: {draftMissingLabels.join(", ")}</p>
+        </div>
+      ) : null}
+
       {savedMessage ? (
         <div className="card border-brand-success/30 bg-brand-success/5">
           <p className="text-sm font-medium text-brand-success">{savedMessage}</p>
@@ -718,12 +785,18 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
 
       <div className="card space-y-6">
         <div className="space-y-2">
-          <h3>{isCreateMode ? "Create Your Organisation Profile" : "Your Organisation Profile"}</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <h3>{isCreateMode ? "Create Your Organisation Profile" : "Your Organisation Profile"}</h3>
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge.className}`}>
+              {statusBadge.text}
+            </span>
+          </div>
           <p className="text-secondary">
             {isCreateMode
               ? "Tell us about your organisation so we can match you with the right funding opportunities."
               : "Keep your profile current for the best fit scan results."}
           </p>
+          {lastSavedRelative ? <p className="text-xs text-secondary">Last saved: {lastSavedRelative}</p> : null}
         </div>
 
         <div className="space-y-4">
