@@ -71,6 +71,16 @@ type ProposalListResponse = {
   }>;
 };
 
+const NO_PROFILE_MISSING_FIELDS = [
+  "organization_name",
+  "country_of_registration",
+  "mission_statement",
+  "focus_sectors",
+  "geographic_areas_of_work",
+  "target_groups",
+  "past_projects",
+] as const;
+
 function isFitScanListResponse(value: unknown): value is FitScanListResponse {
   if (!value || typeof value !== "object") {
     return false;
@@ -112,7 +122,6 @@ function isProposalListResponse(value: unknown): value is ProposalListResponse {
 export default function DashboardPage() {
   const [entitlements, setEntitlements] = useState<EntitlementsResponse | null>(null);
   const [completeness, setCompleteness] = useState<ProfileCompleteness | null>(null);
-  const [profileMissing, setProfileMissing] = useState(false);
   const [fitScans, setFitScans] = useState<FitScanListResponse["fit_scans"]>([]);
   const [proposals, setProposals] = useState<ProposalListResponse["proposals"]>([]);
 
@@ -139,16 +148,11 @@ export default function DashboardPage() {
 
     void fetchCompleteness()
       .then((response) => {
-        setProfileMissing(response.profile_status === "DRAFT" && response.completeness_score === 0);
         setCompleteness(response);
       })
       .catch((error: unknown) => {
-        if (error instanceof ApiClientError && error.status === 404 && error.errorCode === "PROFILE_NOT_FOUND") {
-          setProfileMissing(true);
-          return;
-        }
         setCompletenessError(
-          error instanceof ApiClientError ? error : new ApiClientError(500, "Failed to load profile completeness."),
+          error instanceof ApiClientError ? error : new ApiClientError(500, "Unable to load profile status."),
         );
       })
       .finally(markDone);
@@ -195,7 +199,11 @@ export default function DashboardPage() {
   }, []);
 
   const isPageLoading = useMemo(() => loadingCount > 0, [loadingCount]);
-  const isProfileIncomplete = profileMissing || completeness?.profile_status === "DRAFT";
+  const isNoProfile =
+    completeness?.profile_status === "DRAFT" &&
+    completeness.completeness_score === 0 &&
+    NO_PROFILE_MISSING_FIELDS.every((field) => completeness.missing_fields.includes(field));
+  const isProfileIncomplete = completeness?.profile_status === "DRAFT" && !isNoProfile;
   const hasFitScans = fitScans.length > 0;
   const hasProposals = proposals.length > 0;
   const suggestedFitScan =
@@ -216,7 +224,10 @@ export default function DashboardPage() {
       ) : null}
 
       {completenessError ? (
-        <ErrorDisplay title="Profile completeness unavailable" error={completenessError} />
+        <section className="card space-y-3 border-brand-border">
+          <h3>Profile Completeness</h3>
+          <p className="text-secondary">Unable to load profile status.</p>
+        </section>
       ) : completeness ? (
         <section
           className={`card space-y-3 ${
@@ -234,21 +245,30 @@ export default function DashboardPage() {
             />
           </div>
           {completeness.profile_status === "COMPLETE" ? (
-            <p className="text-sm font-medium text-brand-success">Profile complete</p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-brand-success">Profile complete ✓</p>
+              <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
+                View profile
+              </Link>
+            </div>
+          ) : isNoProfile ? (
+            <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
+              Create your profile to get started →
+            </Link>
           ) : (
             <Link href="/profile" className="inline-flex items-center text-sm font-semibold text-brand-primary hover:underline">
-              Complete your profile \u2192
+              Complete your profile →
             </Link>
           )}
         </section>
       ) : null}
 
-      {!completenessError && isProfileIncomplete ? (
+      {!completenessError && (isProfileIncomplete || isNoProfile) ? (
         <section className="card space-y-3 border-brand-warning/30 bg-brand-warning/5">
-          <h3>Complete your profile to get started</h3>
+          <h3>{isNoProfile ? "Create your profile to get started" : "Complete your profile to get started"}</h3>
           <p className="text-secondary">Finish your profile so GrantPilot can evaluate funding fit accurately.</p>
           <Link href="/profile" className="btn-primary inline-flex w-fit items-center">
-            Complete Profile
+            {isNoProfile ? "Create Profile" : "Complete Profile"}
           </Link>
         </section>
       ) : null}

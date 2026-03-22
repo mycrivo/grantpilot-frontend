@@ -53,7 +53,7 @@ export function FitScanList({ items }: FitScanListProps) {
         <p className="text-secondary">
           No fit scans yet. Start by checking fit for a funding opportunity on NGOInfo.org{" "}
           <a href="https://ngoinfo.org" target="_blank" rel="noreferrer" className="font-semibold text-brand-primary hover:underline">
-            \u2192
+            →
           </a>
         </p>
       ) : (
