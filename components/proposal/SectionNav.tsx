@@ -3,7 +3,7 @@
 type SectionNavItem = {
   submission_item_id: string;
   label: string;
-  generation_status: "GENERATED" | "FAILED" | "MANUAL_REQUIRED";
+  generation_status: "GENERATED" | "FAILED" | "MANUAL_REQUIRED" | "NEEDS_USER_INPUT";
 };
 
 type SectionNavProps = {
@@ -18,6 +18,9 @@ function statusIndicatorClass(status: SectionNavItem["generation_status"]) {
   }
   if (status === "FAILED") {
     return "bg-brand-error";
+  }
+  if (status === "NEEDS_USER_INPUT") {
+    return "bg-brand-warning";
   }
   return "bg-brand-neutral";
 }
@@ -41,6 +44,9 @@ export function SectionNav({ sections, activeSectionId, onSelect }: SectionNavPr
           >
             <span className={`inline-block h-2.5 w-2.5 rounded-full ${statusIndicatorClass(section.generation_status)}`} />
             <span className="truncate">{section.label}</span>
+            {section.generation_status === "NEEDS_USER_INPUT" ? (
+              <span className="ml-auto text-xs font-semibold text-brand-warning">Needs input</span>
+            ) : null}
           </button>
         );
       })}

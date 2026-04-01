@@ -9,7 +9,12 @@ type PastProjectCardProps = {
   project: NgoPastProject;
   onChange: (next: NgoPastProject) => void;
   onRemove: () => void;
-  errors?: Partial<Record<"title" | "donor" | "duration" | "location" | "summary", string>>;
+  errors?: Partial<
+    Record<
+      "title" | "donor" | "duration" | "location" | "summary" | "beneficiaries_reached" | "budget" | "outcomes",
+      string
+    >
+  >;
 };
 
 export function PastProjectCard({ index, project, onChange, onRemove, errors }: PastProjectCardProps) {
@@ -80,6 +85,41 @@ export function PastProjectCard({ index, project, onChange, onRemove, errors }: 
               className="mt-1 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-2 text-[14px] outline-none focus:border-brand-primary"
             />
             {errors?.summary ? <p className="mt-1 text-sm text-brand-error">{errors.summary}</p> : null}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-brand-text-primary">Beneficiaries Reached</label>
+            <input
+              type="text"
+              value={project.beneficiaries_reached ?? ""}
+              placeholder="e.g., 2,000 smallholder farmers in Western Kenya"
+              onChange={(event) => onChange({ ...project, beneficiaries_reached: event.target.value || undefined })}
+              className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
+            />
+            {errors?.beneficiaries_reached ? (
+              <p className="mt-1 text-sm text-brand-error">{errors.beneficiaries_reached}</p>
+            ) : null}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-brand-text-primary">Project Budget</label>
+            <input
+              type="text"
+              value={project.budget ?? ""}
+              placeholder="e.g., USD 450,000"
+              onChange={(event) => onChange({ ...project, budget: event.target.value || undefined })}
+              className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
+            />
+            {errors?.budget ? <p className="mt-1 text-sm text-brand-error">{errors.budget}</p> : null}
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-brand-text-primary">Key Outcomes</label>
+            <input
+              type="text"
+              value={project.outcomes ?? ""}
+              placeholder="e.g., 34% reduction in crop losses over 2 years"
+              onChange={(event) => onChange({ ...project, outcomes: event.target.value || undefined })}
+              className="mt-1 h-11 w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 text-[14px] outline-none focus:border-brand-primary"
+            />
+            {errors?.outcomes ? <p className="mt-1 text-sm text-brand-error">{errors.outcomes}</p> : null}
           </div>
         </div>
       ) : null}

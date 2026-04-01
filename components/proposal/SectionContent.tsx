@@ -1,12 +1,15 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+
 import { AssumptionsList } from "@/components/proposal/AssumptionsList";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
 type ProposalSection = {
   submission_item_id: string;
   label: string;
-  generation_status: "GENERATED" | "FAILED" | "MANUAL_REQUIRED";
+  generation_status: "GENERATED" | "FAILED" | "MANUAL_REQUIRED" | "NEEDS_USER_INPUT";
+  missing_inputs?: string[];
   archetype: string | null;
   content: {
     text: string;
@@ -22,6 +25,9 @@ type ProposalSection = {
 
 type SectionContentProps = {
   section: ProposalSection;
+  regenerationLoading?: boolean;
+  regenerationErrorMessage?: string | null;
+  onSaveAndRegenerate?: (submissionItemId: string, responseText: string) => Promise<void> | void;
 };
 
 function sectionStatusTone(status: ProposalSection["generation_status"]) {
@@ -31,11 +37,38 @@ function sectionStatusTone(status: ProposalSection["generation_status"]) {
   if (status === "FAILED") {
     return "error";
   }
+  if (status === "NEEDS_USER_INPUT") {
+    return "warning";
+  }
   return "neutral";
 }
 
-export function SectionContent({ section }: SectionContentProps) {
+function humanizeMissingInput(field: string) {
+  const cleaned = field.replace(/^ngo_profile\./, "").replaceAll("_", " ").trim();
+  if (!cleaned) {
+    return "Additional details";
+  }
+  const lowered = cleaned.toLowerCase();
+  return lowered.charAt(0).toUpperCase() + lowered.slice(1);
+}
+
+export function SectionContent({
+  section,
+  regenerationLoading = false,
+  regenerationErrorMessage,
+  onSaveAndRegenerate,
+}: SectionContentProps) {
   const constraints = section.constraints_applied;
+  const [responseText, setResponseText] = useState("");
+  const missingInputs = useMemo(
+    () => (Array.isArray(section.missing_inputs) ? section.missing_inputs : []),
+    [section.missing_inputs],
+  );
+  const canSubmit = responseText.trim().length > 0 && !regenerationLoading;
+
+  useEffect(() => {
+    setResponseText("");
+  }, [section.submission_item_id]);
 
   return (
     <article id={`section-${section.submission_item_id}`} className="card space-y-4 scroll-mt-24">
@@ -71,6 +104,38 @@ export function SectionContent({ section }: SectionContentProps) {
         <p className="text-secondary">
           This section requires manual input. AI generation is not available for this item.
         </p>
+      ) : null}
+
+      {section.generation_status === "NEEDS_USER_INPUT" ? (
+        <div className="space-y-3">
+          <p className="text-brand-text-primary">This section needs more information from you to generate.</p>
+          {missingInputs.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-brand-text-primary">Missing details:</p>
+              <ul className="list-inside list-disc space-y-1 text-sm text-secondary">
+                {missingInputs.map((field) => (
+                  <li key={field}>{humanizeMissingInput(field)}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <textarea
+            rows={6}
+            value={responseText}
+            onChange={(event) => setResponseText(event.target.value)}
+            className="w-full rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-2 text-[14px] outline-none focus:border-brand-primary"
+            placeholder="Add the missing details for this section."
+          />
+          {regenerationErrorMessage ? <p className="text-sm text-brand-error">{regenerationErrorMessage}</p> : null}
+          <button
+            type="button"
+            className="btn-primary inline-flex items-center disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!canSubmit}
+            onClick={() => void onSaveAndRegenerate?.(section.submission_item_id, responseText.trim())}
+          >
+            {regenerationLoading ? "Saving & Regenerating..." : "Save & Regenerate"}
+          </button>
+        </div>
       ) : null}
     </article>
   );

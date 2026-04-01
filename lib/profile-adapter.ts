@@ -58,6 +58,9 @@ function normalizePastProject(raw: unknown): PastProject {
     duration: asStringOrNull(project.duration),
     location: asStringOrNull(project.location),
     summary: asStringOrNull(project.summary),
+    beneficiaries_reached: asStringOrNull(project.beneficiaries_reached) ?? undefined,
+    budget: asStringOrNull(project.budget) ?? undefined,
+    outcomes: asStringOrNull(project.outcomes) ?? undefined,
   };
 }
 
@@ -152,6 +155,9 @@ export function buildSavePayload(formData: ProfileSavePayload): ProfileSavePaylo
       duration: asStringOrNull(project.duration),
       location: asStringOrNull(project.location),
       summary: asStringOrNull(project.summary),
+      beneficiaries_reached: asStringOrNull(project.beneficiaries_reached) ?? undefined,
+      budget: asStringOrNull(project.budget) ?? undefined,
+      outcomes: asStringOrNull(project.outcomes) ?? undefined,
     };
   });
 

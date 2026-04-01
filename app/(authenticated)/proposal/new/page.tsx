@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { GenerationProgress } from "@/components/proposals/GenerationProgress";
+import { PreFlightCheck } from "@/components/proposals/PreFlightCheck";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LimitReached } from "@/components/shared/LimitReached";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
@@ -91,6 +92,7 @@ export default function ProposalNewPage() {
   const [proposalRemaining, setProposalRemaining] = useState<number>(0);
   const [proposalResetAt, setProposalResetAt] = useState<string | null>(null);
   const [freeConfirmed, setFreeConfirmed] = useState(false);
+  const [showPreFlightCheck, setShowPreFlightCheck] = useState(false);
 
   const [preflightError, setPreflightError] = useState<ApiClientError | null>(null);
   const [generationError, setGenerationError] = useState<ApiClientError | null>(null);
@@ -189,7 +191,7 @@ export default function ProposalNewPage() {
   const opportunityIdSuffix = queryContext ? shortOpportunityId(queryContext.opportunityId) : "";
   const proposalAllowed = proposalRemaining > 0;
 
-  const runGeneration = async () => {
+  const runGeneration = useCallback(async () => {
     if (!queryContext) {
       return;
     }
@@ -223,7 +225,7 @@ export default function ProposalNewPage() {
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [queryContext, router]);
 
   if (isInvalidLink) {
     return (
@@ -297,6 +299,16 @@ export default function ProposalNewPage() {
         currentOpportunityTitle={titleLine}
         previousOpportunityTitle={null}
         exhaustedResource="proposals"
+      />
+    );
+  }
+
+  if (showPreFlightCheck && proposalAllowed && canGenerate && queryContext) {
+    return (
+      <PreFlightCheck
+        fundingOpportunityId={queryContext.opportunityId}
+        onGenerate={runGeneration}
+        onBack={() => setShowPreFlightCheck(false)}
       />
     );
   }
@@ -385,7 +397,10 @@ export default function ProposalNewPage() {
             type="button"
             className="btn-primary inline-flex items-center disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!canGenerate}
-            onClick={() => void runGeneration()}
+            onClick={() => {
+              setGenerationError(null);
+              setShowPreFlightCheck(true);
+            }}
           >
             Generate Proposal
           </button>

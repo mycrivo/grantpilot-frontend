@@ -12,9 +12,10 @@ import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ApiClientError, apiRequest, type ApiErrorEnvelope } from "@/lib/api-client";
+import { regenerateProposal, updateKnowledgeBank } from "@/lib/api/proposals";
 
 type ProposalStatus = "DRAFT" | "DEGRADED";
-type SectionGenerationStatus = "GENERATED" | "FAILED" | "MANUAL_REQUIRED";
+type SectionGenerationStatus = "GENERATED" | "FAILED" | "MANUAL_REQUIRED" | "NEEDS_USER_INPUT";
 
 type ProposalDetailResponse = {
   id: string;
@@ -42,6 +43,7 @@ type ProposalSection = {
   submission_item_id: string;
   label: string;
   generation_status: SectionGenerationStatus;
+  missing_inputs?: string[];
   archetype: string | null;
   content: {
     text: string;
@@ -80,7 +82,8 @@ function isProposalSection(value: unknown): value is ProposalSection {
   const section = value as Partial<ProposalSection>;
   const validStatus = section.generation_status === "GENERATED" ||
     section.generation_status === "FAILED" ||
-    section.generation_status === "MANUAL_REQUIRED";
+    section.generation_status === "MANUAL_REQUIRED" ||
+    section.generation_status === "NEEDS_USER_INPUT";
   return (
     typeof section.submission_item_id === "string" &&
     typeof section.label === "string" &&
@@ -221,13 +224,7 @@ export default function ProposalViewerPage() {
     setRegenLoading(true);
     setRegenError(null);
     try {
-      const payload = await apiRequest<unknown>(
-        `/api/proposals/${encodeURIComponent(proposal.id)}/regenerate`,
-        {
-          method: "POST",
-          body: JSON.stringify({ mode: "FULL" }),
-        },
-      );
+      const payload = await regenerateProposal(proposal.id);
       if (!isProposalDetailResponse(payload)) {
         setSchemaError(
           "STOP: Regeneration response does not match API_CONTRACT.md Section 9.2 (missing sections/generation_status/label/content).",
@@ -237,7 +234,14 @@ export default function ProposalViewerPage() {
       }
       setProposal(payload);
       if (payload.content_json.sections.length > 0) {
-        setActiveSectionId(payload.content_json.sections[0].submission_item_id);
+        const previousSectionStillExists = payload.content_json.sections.some(
+          (section) => section.submission_item_id === activeSectionId,
+        );
+        setActiveSectionId(
+          previousSectionStillExists && activeSectionId
+            ? activeSectionId
+            : payload.content_json.sections[0].submission_item_id,
+        );
       }
     } catch (error) {
       if (error instanceof ApiClientError) {
@@ -248,6 +252,51 @@ export default function ProposalViewerPage() {
         } else {
           setRegenError(error);
         }
+      } else {
+        setRegenError(new ApiClientError(500, "Something went wrong. Please try again."));
+      }
+    } finally {
+      setRegenLoading(false);
+    }
+  };
+
+  const runSaveAndRegenerate = async (submissionItemId: string, responseText: string) => {
+    if (!proposal) {
+      return;
+    }
+    setRegenError(null);
+    setRegenLoading(true);
+    try {
+      await updateKnowledgeBank([
+        {
+          key: submissionItemId,
+          text: responseText,
+          opportunity_id: proposal.funding_opportunity_id,
+        },
+      ]);
+
+      const payload = await regenerateProposal(proposal.id);
+      if (!isProposalDetailResponse(payload)) {
+        setSchemaError(
+          "STOP: Regeneration response does not match API_CONTRACT.md Section 9.2 (missing sections/generation_status/label/content).",
+        );
+        setProposal(null);
+        return;
+      }
+      setProposal(payload);
+      if (payload.content_json.sections.length > 0) {
+        const previousSectionStillExists = payload.content_json.sections.some(
+          (section) => section.submission_item_id === activeSectionId,
+        );
+        setActiveSectionId(
+          previousSectionStillExists && activeSectionId
+            ? activeSectionId
+            : payload.content_json.sections[0].submission_item_id,
+        );
+      }
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setRegenError(error);
       } else {
         setRegenError(new ApiClientError(500, "Something went wrong. Please try again."));
       }
@@ -413,7 +462,16 @@ export default function ProposalViewerPage() {
           activeSectionId={activeSectionId}
           onSelect={(id) => setActiveSectionId(id)}
         />
-        {selectedSection ? <SectionContent section={selectedSection} /> : <LoadingSkeleton lines={2} />}
+        {selectedSection ? (
+          <SectionContent
+            section={selectedSection}
+            regenerationLoading={regenLoading}
+            regenerationErrorMessage={regenError?.message ?? null}
+            onSaveAndRegenerate={runSaveAndRegenerate}
+          />
+        ) : (
+          <LoadingSkeleton lines={2} />
+        )}
       </div>
 
       <div className="card space-y-2 text-sm text-secondary">

@@ -17,6 +17,9 @@ export type PastProject = {
   duration: string | null;
   location: string | null;
   summary: string | null;
+  beneficiaries_reached?: string;
+  budget?: string;
+  outcomes?: string;
 };
 
 export type NgoProfile = {
