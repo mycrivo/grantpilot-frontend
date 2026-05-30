@@ -3,8 +3,11 @@
 import Link from "next/link";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
-
-type FitScanRecommendation = "RECOMMENDED" | "APPLY_WITH_CAVEATS" | "NOT_RECOMMENDED";
+import {
+  type FitScanRecommendation,
+  MISSING_OPPORTUNITY_TITLE,
+  recommendationLabel,
+} from "@/lib/fit-scan-labels";
 
 type FitScanItem = {
   id: string;
@@ -62,10 +65,13 @@ export function FitScanList({ items }: FitScanListProps) {
             <li key={item.id} className="rounded-[8px] border border-brand-border p-3">
               <Link href={`/fit-scan/${encodeURIComponent(item.id)}`} className="space-y-2">
                 <p className="font-semibold text-brand-text-primary">
-                  {item.opportunity_title?.trim() ? item.opportunity_title : "Untitled opportunity"}
+                  {item.opportunity_title?.trim() ? item.opportunity_title : MISSING_OPPORTUNITY_TITLE}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge label={item.overall_recommendation} status={item.overall_recommendation} />
+                  <StatusBadge
+                    label={recommendationLabel(item.overall_recommendation)}
+                    status={item.overall_recommendation}
+                  />
                   <span className="text-sm text-secondary">{relativeTime(item.created_at)}</span>
                 </div>
               </Link>

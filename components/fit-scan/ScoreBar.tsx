@@ -1,3 +1,5 @@
+import { SCORE_DESCRIPTORS } from "@/lib/fit-scan-labels";
+
 type ScoreBarProps = {
   label: string;
   score: number;
@@ -15,6 +17,7 @@ function barColor(score: number) {
 
 export function ScoreBar({ label, score }: ScoreBarProps) {
   const clamped = Math.max(0, Math.min(100, score));
+  const descriptor = SCORE_DESCRIPTORS[label];
 
   return (
     <div className="space-y-1">
@@ -22,6 +25,7 @@ export function ScoreBar({ label, score }: ScoreBarProps) {
         <span className="text-sm font-medium text-brand-text-primary">{label}</span>
         <span className="text-sm font-semibold text-brand-text-primary">{clamped}</span>
       </div>
+      {descriptor ? <p className="text-xs text-secondary">{descriptor}</p> : null}
       <div className="h-2 rounded-full bg-brand-divider">
         <div className={`h-2 rounded-full ${barColor(clamped)}`} style={{ width: `${clamped}%` }} />
       </div>

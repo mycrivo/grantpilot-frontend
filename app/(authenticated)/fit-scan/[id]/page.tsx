@@ -10,8 +10,7 @@ import { apiRequest, ApiClientError } from "@/lib/api-client";
 import { RecommendationBanner } from "@/components/fit-scan/RecommendationBanner";
 import { ScoreBar } from "@/components/fit-scan/ScoreBar";
 import { RiskFlagList } from "@/components/fit-scan/RiskFlagList";
-
-type Recommendation = "RECOMMENDED" | "APPLY_WITH_CAVEATS" | "NOT_RECOMMENDED";
+import { MISSING_OPPORTUNITY_TITLE, type FitScanRecommendation } from "@/lib/fit-scan-labels";
 type RiskSeverity = "HIGH" | "MEDIUM" | "LOW";
 
 type FitScanPayload = {
@@ -19,7 +18,7 @@ type FitScanPayload = {
     id: string;
     funding_opportunity_id: string;
     opportunity_title?: string | null;
-    overall_recommendation: Recommendation;
+    overall_recommendation: FitScanRecommendation;
     model_rating?: string;
     subscores: {
       eligibility: number;
@@ -170,14 +169,13 @@ export default function FitScanResultPage() {
       <div className="card space-y-2">
         <h3>Fit Scan Result</h3>
         <p className="text-secondary">
-          Fit Scan for: {fitScan.opportunity_title?.trim() ? fitScan.opportunity_title : "Untitled opportunity"}
+          Fit Scan for: {fitScan.opportunity_title?.trim() ? fitScan.opportunity_title : MISSING_OPPORTUNITY_TITLE}
         </p>
       </div>
 
       <RecommendationBanner
         recommendation={fitScan.overall_recommendation}
         rationale={fitScan.primary_rationale}
-        modelRating={fitScan.model_rating}
       />
 
       <div className="card space-y-4">
