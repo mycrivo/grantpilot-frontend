@@ -1,0 +1,144 @@
+/**
+ * Authoritative-state routing for /reports/{id} — API_CONTRACT.md §12.12.
+ * Uses getReportJob stage/status (+ report.status for terminal states), NOT report.current_gate.
+ */
+
+import type { ReportDetailResponse, ReportJobStatusResponse } from "@/lib/api/reports";
+import {
+  CURRENT_GATE,
+  DONOR_REPORT_STATUS,
+  REPORT_JOB_STAGE,
+  REPORT_JOB_STATUS,
+  type ReportJobStage,
+} from "@/lib/me-enums";
+
+export type ReportDetailSubpath = "upload" | "reading" | "facts" | "questions" | "review" | "done";
+
+const EXTRACTING_STAGES: ReportJobStage[] = [
+  REPORT_JOB_STAGE.CLASSIFY,
+  REPORT_JOB_STAGE.EXTRACT,
+  REPORT_JOB_STAGE.RECONCILE,
+];
+
+const GENERATING_STAGES: ReportJobStage[] = [
+  REPORT_JOB_STAGE.GAP,
+  REPORT_JOB_STAGE.SYNTHESISE,
+  REPORT_JOB_STAGE.CRITIQUE,
+  REPORT_JOB_STAGE.EXPORT,
+];
+
+function isActiveJob(job: ReportJobStatusResponse): boolean {
+  return job.status === REPORT_JOB_STATUS.QUEUED || job.status === REPORT_JOB_STATUS.RUNNING;
+}
+
+function resolveAwaitingHumanSubpath(job: ReportJobStatusResponse): ReportDetailSubpath {
+  if (job.current_gate === CURRENT_GATE.GATE1) {
+    return "facts";
+  }
+  if (job.current_gate === CURRENT_GATE.GATE2) {
+    return "questions";
+  }
+  if (job.current_gate === CURRENT_GATE.GATE3) {
+    return "review";
+  }
+  return "reading";
+}
+
+/** Map authoritative job + report state to the detail sub-route segment. */
+export function resolveReportDetailSubpath(
+  report: ReportDetailResponse,
+  job: ReportJobStatusResponse | null,
+): ReportDetailSubpath {
+  if (report.status === DONOR_REPORT_STATUS.COMPLETE) {
+    return "done";
+  }
+
+  if (!job) {
+    if (report.status === DONOR_REPORT_STATUS.DRAFT) {
+      return "upload";
+    }
+    if (report.status === DONOR_REPORT_STATUS.DEGRADED) {
+      return "done";
+    }
+    return "reading";
+  }
+
+  if (job.status === REPORT_JOB_STATUS.FAILED) {
+    return "reading";
+  }
+
+  if (job.status === REPORT_JOB_STATUS.AWAITING_HUMAN) {
+    return resolveAwaitingHumanSubpath(job);
+  }
+
+  if (job.status === REPORT_JOB_STATUS.DONE) {
+    if (report.status === DONOR_REPORT_STATUS.DEGRADED) {
+      return "done";
+    }
+    if (report.status === DONOR_REPORT_STATUS.AWAITING_REVIEW) {
+      return resolveAwaitingHumanSubpath(job);
+    }
+    return "done";
+  }
+
+  if (isActiveJob(job)) {
+    if (EXTRACTING_STAGES.includes(job.stage) || GENERATING_STAGES.includes(job.stage)) {
+      return "reading";
+    }
+    return "reading";
+  }
+
+  if (report.status === DONOR_REPORT_STATUS.DEGRADED) {
+    return "done";
+  }
+
+  return "reading";
+}
+
+/** Poll while the pipeline job is actively running; stop on halt, terminal, or error. */
+export function shouldPollReportJob(
+  job: ReportJobStatusResponse | null,
+  report: ReportDetailResponse,
+): boolean {
+  if (!job) {
+    return false;
+  }
+
+  if (job.status === REPORT_JOB_STATUS.FAILED) {
+    return false;
+  }
+
+  if (job.status === REPORT_JOB_STATUS.AWAITING_HUMAN) {
+    return false;
+  }
+
+  if (job.status === REPORT_JOB_STATUS.DONE) {
+    return false;
+  }
+
+  if (report.status === DONOR_REPORT_STATUS.COMPLETE) {
+    return false;
+  }
+
+  if (
+    report.status === DONOR_REPORT_STATUS.DEGRADED &&
+    job.status !== REPORT_JOB_STATUS.QUEUED &&
+    job.status !== REPORT_JOB_STATUS.RUNNING
+  ) {
+    return false;
+  }
+
+  return isActiveJob(job);
+}
+
+export function isReportDegraded(report: ReportDetailResponse): boolean {
+  return report.status === DONOR_REPORT_STATUS.DEGRADED;
+}
+
+export function isExtractingStage(stage: ReportJobStage): boolean {
+  return EXTRACTING_STAGES.includes(stage);
+}
+
+export function isGeneratingStage(stage: ReportJobStage): boolean {
+  return GENERATING_STAGES.includes(stage);
+}

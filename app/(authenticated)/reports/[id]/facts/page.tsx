@@ -1,0 +1,23 @@
+"use client";
+
+import { use } from "react";
+
+import { ReportGatePlaceholder } from "@/components/reports/ReportGatePlaceholder";
+import { ReportsFunnelHeader } from "@/components/reports/ReportsFunnelHeader";
+import { ReportsJourneySteps } from "@/components/reports/ReportsJourneySteps";
+
+type FactsReportPageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default function FactsReportPage({ params }: FactsReportPageProps) {
+  use(params);
+
+  return (
+    <section className="space-y-6">
+      <ReportsFunnelHeader />
+      <ReportsJourneySteps current="facts" />
+      <ReportGatePlaceholder stepName="Review project facts" />
+    </section>
+  );
+}
