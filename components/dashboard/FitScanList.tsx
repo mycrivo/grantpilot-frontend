@@ -50,7 +50,7 @@ function relativeTime(value: string) {
 
 export function FitScanList({ items }: FitScanListProps) {
   return (
-    <section className="card space-y-4">
+    <section id="fit-scans" className="card scroll-mt-6 space-y-4">
       <h3>Recent Fit Scans</h3>
       {items.length === 0 ? (
         <p className="text-secondary">

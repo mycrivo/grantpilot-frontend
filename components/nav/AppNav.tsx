@@ -8,21 +8,44 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { NGOINFO_LOGO_URL } from "@/lib/brand";
 import { isMeModuleEnabled } from "@/lib/me-module";
 
-const baseNavItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/profile", label: "My Profile" },
-  { href: "/billing", label: "Plans & Billing" },
-];
+type NavItem = {
+  href: string;
+  label: string;
+};
 
-const reportsNavItem = { href: "/reports", label: "Reports" };
+const fitScansNavItem: NavItem = { href: "/dashboard#fit-scans", label: "Fit Scans" };
+const proposalsNavItem: NavItem = { href: "/dashboard#proposals", label: "Proposals" };
+const reportsNavItem: NavItem = { href: "/reports", label: "Reports" };
 
-const navItems = isMeModuleEnabled()
-  ? [baseNavItems[0], baseNavItems[1], reportsNavItem, baseNavItems[2]]
-  : baseNavItems;
+function buildNavItems(): NavItem[] {
+  const items: NavItem[] = [
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/profile", label: "Profile" },
+    fitScansNavItem,
+    proposalsNavItem,
+  ];
+
+  if (isMeModuleEnabled()) {
+    items.push(reportsNavItem);
+  }
+
+  items.push({ href: "/billing", label: "Billing" });
+  return items;
+}
+
+function isNavItemActive(pathname: string, href: string): boolean {
+  if (href.includes("#")) {
+    const [path] = href.split("#");
+    return pathname === path;
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function AppNav() {
   const pathname = usePathname();
   const { logout } = useAuth();
+  const navItems = buildNavItems();
 
   return (
     <aside className="border-r border-brand-border bg-brand-card-bg">
@@ -38,7 +61,7 @@ export function AppNav() {
       </div>
       <nav className="space-y-1 p-4 md:p-6">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isActive = isNavItemActive(pathname, item.href);
           return (
             <Link
               key={item.href}

@@ -263,3 +263,22 @@ export const GATE3_LABEL = {
   REVIEW_ISSUE: "Review issue",
   REVIEW_BEFORE_DOWNLOAD: "Please review before download.",
 } as const;
+
+/** Dashboard + Path C entry (B-04 cohesion). */
+export const DASHBOARD_REPORTS_LABEL = {
+  TITLE: "Donor reports",
+  VIEW_ALL: "View all reports",
+  PATH_C_LINK: "Won a grant elsewhere?",
+  EMPTY: "No donor reports yet.",
+  START_CTA: "Start a report",
+} as const;
+
+export const PATH_C_LABEL = {
+  TITLE: "Report on a grant you\u2019ve won",
+  SUBTITLE:
+    "Whether you won with GrantPilot or elsewhere, turn your project documents into a structured funder report.",
+  BODY:
+    "You do not need a prior fit scan or proposal. Upload what you have, confirm the facts, and GrantPilot drafts the report in your funder\u2019s format.",
+  CTA: "Start your report",
+  VIEW_REPORTS: "View your reports",
+} as const;

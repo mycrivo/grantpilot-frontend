@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type { EntitlementQuotaBlock, EntitlementsResponse } from "@/lib/api/entitlements";
+import { isMeModuleEnabled } from "@/lib/me-module";
 import { PLAN_DETAILS, type Plan } from "@/lib/plans";
 
 type QuotaOverviewProps = {
@@ -105,7 +106,7 @@ function QuotaBar({
 }
 
 export function QuotaOverview({ payload }: QuotaOverviewProps) {
-  const showReportsBar = payload.entitlements.reports.limit > 0;
+  const showReportsBar = isMeModuleEnabled() && payload.entitlements.reports.limit > 0;
 
   return (
     <section className="card space-y-4">

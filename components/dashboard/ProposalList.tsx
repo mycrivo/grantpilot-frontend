@@ -49,7 +49,7 @@ function relativeTime(value: string) {
 
 export function ProposalList({ items }: ProposalListProps) {
   return (
-    <section className="card space-y-4">
+    <section id="proposals" className="card scroll-mt-6 space-y-4">
       <h3>Recent Proposals</h3>
       {items.length === 0 ? (
         <p className="text-secondary">No proposals yet.</p>

@@ -6,10 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import { FitScanList } from "@/components/dashboard/FitScanList";
 import { ProposalList } from "@/components/dashboard/ProposalList";
 import { QuotaOverview } from "@/components/dashboard/QuotaOverview";
+import { ReportsDashboardGlance } from "@/components/dashboard/ReportsDashboardGlance";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import type { EntitlementsResponse } from "@/lib/api/entitlements";
+import { listReports, type ReportListItem } from "@/lib/api/reports";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
+import { isMeModuleEnabled } from "@/lib/me-module";
 import { fetchCompleteness } from "@/lib/profile-service";
 import type { ProfileCompleteness } from "@/lib/profile-types";
 
@@ -102,12 +105,16 @@ export default function DashboardPage() {
   const [completeness, setCompleteness] = useState<ProfileCompleteness | null>(null);
   const [fitScans, setFitScans] = useState<FitScanListResponse["fit_scans"]>([]);
   const [proposals, setProposals] = useState<ProposalListResponse["proposals"]>([]);
+  const [reports, setReports] = useState<ReportListItem[]>([]);
 
   const [entitlementsError, setEntitlementsError] = useState<ApiClientError | null>(null);
   const [completenessError, setCompletenessError] = useState<ApiClientError | null>(null);
   const [fitScansError, setFitScansError] = useState<ApiClientError | null>(null);
   const [proposalsError, setProposalsError] = useState<ApiClientError | null>(null);
+  const [reportsError, setReportsError] = useState<ApiClientError | null>(null);
 
+  const meModuleEnabled = isMeModuleEnabled();
+  const [reportsLoading, setReportsLoading] = useState(false);
   const [loadingCount, setLoadingCount] = useState(4);
 
   useEffect(() => {
@@ -116,6 +123,24 @@ export default function DashboardPage() {
     void apiRequest<EntitlementsResponse>("/api/me/entitlements", { method: "GET" })
       .then((response) => {
         setEntitlements(response);
+
+        if (meModuleEnabled && response.entitlements.reports.limit > 0) {
+          setReportsLoading(true);
+          void listReports(5)
+            .then((payload) => {
+              setReports(payload.reports);
+            })
+            .catch((error: unknown) => {
+              setReportsError(
+                error instanceof ApiClientError
+                  ? error
+                  : new ApiClientError(500, "Failed to load recent donor reports."),
+              );
+            })
+            .finally(() => {
+              setReportsLoading(false);
+            });
+        }
       })
       .catch((error: unknown) => {
         setEntitlementsError(
@@ -174,7 +199,7 @@ export default function DashboardPage() {
         );
       })
       .finally(markDone);
-  }, []);
+  }, [meModuleEnabled]);
 
   const isPageLoading = useMemo(() => loadingCount > 0, [loadingCount]);
   const isNoProfile =
@@ -188,6 +213,8 @@ export default function DashboardPage() {
     fitScans.find(
       (scan) => scan.overall_recommendation === "RECOMMENDED" || scan.overall_recommendation === "APPLY_WITH_CAVEATS",
     ) ?? null;
+  const showReportsGlance =
+    meModuleEnabled && entitlements !== null && entitlements.entitlements.reports.limit > 0;
 
   if (isPageLoading) {
     return <LoadingSkeleton variant="page" lines={8} />;
@@ -268,6 +295,16 @@ export default function DashboardPage() {
             </a>
           )}
         </section>
+      ) : null}
+
+      {showReportsGlance ? (
+        reportsError ? (
+          <ErrorDisplay title="Recent donor reports unavailable" error={reportsError} />
+        ) : reportsLoading ? (
+          <LoadingSkeleton variant="card" lines={4} />
+        ) : (
+          <ReportsDashboardGlance reports={reports} />
+        )
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
