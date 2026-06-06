@@ -134,7 +134,9 @@ export type GapCheckResponse = {
 };
 
 export type GapAnswerInput = {
-  answer_text: string;
+  answer_text?: string | null;
+  disposition?: "answered" | "skipped";
+  skip_reason?: "not_applicable" | "cannot_provide" | null;
 };
 
 export type PatchGapAnswersRequest = {

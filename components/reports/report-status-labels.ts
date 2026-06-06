@@ -210,3 +210,21 @@ export const GATE1_LABEL = {
   CONFIRMING: "Confirming…",
   SAVING: "Saving…",
 } as const;
+
+/** Screen 7 — Gate 2 missing questions (ME_MODULE_REPORTS_NGO_UI.html). */
+export const GATE2_LABEL = {
+  TITLE: "Answer a few missing questions",
+  SUBTITLE:
+    "We could not find these details in your documents. Answer what you can. Skip anything you cannot confirm.",
+  SAVE_ANSWER: "Save answer",
+  SKIP: "Skip",
+  SKIPPED: "Skipped — not provided",
+  SAVED: "Answer saved",
+  CONTINUE_TO_DRAFT: "Continue to draft",
+  CONTINUING: "Continuing…",
+  SAVING: "Saving…",
+  TRUST_LINE: "Skipped answers are marked as not provided. GrantPilot will not invent missing information.",
+  ANSWER_PLACEHOLDER: "Type your answer…",
+  WHY_PREFIX: "",
+  SECTION_SEPARATOR: " · ",
+} as const;
