@@ -6,12 +6,19 @@ import { usePathname } from "next/navigation";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { NGOINFO_LOGO_URL } from "@/lib/brand";
+import { isMeModuleEnabled } from "@/lib/me-module";
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/profile", label: "My Profile" },
   { href: "/billing", label: "Plans & Billing" },
 ];
+
+const reportsNavItem = { href: "/reports", label: "Reports" };
+
+const navItems = isMeModuleEnabled()
+  ? [baseNavItems[0], baseNavItems[1], reportsNavItem, baseNavItems[2]]
+  : baseNavItems;
 
 export function AppNav() {
   const pathname = usePathname();
