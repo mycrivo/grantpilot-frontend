@@ -135,20 +135,31 @@ async function requestRefreshToken() {
   return true;
 }
 
-export async function apiRequest<T>(
-  path: string,
-  init: RequestInit = {},
-  options: ApiRequestOptions = {},
-): Promise<T> {
+function assertApiBaseUrl() {
   if (!API_BASE_URL) {
     throw new ApiClientError(500, "NEXT_PUBLIC_API_BASE_URL is not configured.");
   }
+}
+
+async function throwApiClientError(response: Response): Promise<never> {
+  const text = await response.text();
+  const envelope = parseSafeJson<ApiErrorEnvelope>(text);
+  throw new ApiClientError(response.status, buildUserMessage(response.status, envelope), envelope ?? undefined);
+}
+
+async function authenticatedFetch(
+  path: string,
+  init: RequestInit = {},
+  options: ApiRequestOptions = {},
+): Promise<Response> {
+  assertApiBaseUrl();
 
   const auth = options.auth ?? true;
   const retryOn401 = options.retryOn401 ?? true;
   const headers = new Headers(init.headers);
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
 
-  if (!headers.has("Content-Type") && init.body) {
+  if (!isFormData && !headers.has("Content-Type") && init.body) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -164,7 +175,7 @@ export async function apiRequest<T>(
   if (response.status === 401 && auth && retryOn401) {
     const refreshSucceeded = await requestRefreshToken();
     if (refreshSucceeded) {
-      return apiRequest<T>(path, init, { ...options, retryOn401: false });
+      return authenticatedFetch(path, init, { ...options, retryOn401: false });
     }
   }
 
@@ -172,10 +183,18 @@ export async function apiRequest<T>(
     forceLoginRedirect();
   }
 
+  return response;
+}
+
+export async function apiRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  const response = await authenticatedFetch(path, init, options);
+
   if (!response.ok) {
-    const text = await response.text();
-    const envelope = parseSafeJson<ApiErrorEnvelope>(text);
-    throw new ApiClientError(response.status, buildUserMessage(response.status, envelope), envelope ?? undefined);
+    await throwApiClientError(response);
   }
 
   if (response.status === 204) {
@@ -185,3 +204,80 @@ export async function apiRequest<T>(
   return (await response.json()) as T;
 }
 
+/** Multipart upload — no JSON Content-Type; reuses authenticatedFetch auth/refresh. */
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  const response = await authenticatedFetch(
+    path,
+    {
+      method: "POST",
+      body: formData,
+    },
+    options,
+  );
+
+  if (!response.ok) {
+    await throwApiClientError(response);
+  }
+
+  return (await response.json()) as T;
+}
+
+export type BlobDownloadResult = {
+  blob: Blob;
+  filename: string;
+  contentType: string;
+};
+
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) {
+    return null;
+  }
+
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const plainMatch = header.match(/filename="?([^";]+)"?/i);
+  return plainMatch?.[1] ?? null;
+}
+
+/** Binary download through the existing auth path (JSON errors parsed on failure). */
+export async function apiDownloadBlob(
+  path: string,
+  init: RequestInit = {},
+  options: ApiRequestOptions = {},
+): Promise<BlobDownloadResult> {
+  const response = await authenticatedFetch(path, init, options);
+
+  if (!response.ok) {
+    await throwApiClientError(response);
+  }
+
+  const blob = await response.blob();
+  const filename = parseContentDispositionFilename(response.headers.get("Content-Disposition")) ?? "download";
+  const contentType = response.headers.get("Content-Type") ?? "application/octet-stream";
+
+  return { blob, filename, contentType };
+}
+
+/** Trigger a browser file download from a fetched blob. */
+export function triggerClientDownload({ blob, filename }: { blob: Blob; filename: string }) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
