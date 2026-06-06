@@ -1,7 +1,7 @@
 # API_CONTRACT.md (Canonical — Single Source of Truth)
 
 **Status:** Canonical — LOCKED FOR BUILD
-**Last updated:** 2026-03-16
+**Last updated:** 2026-04-01
 **Scope:** GrantPilot API contract for backend + frontend integration
 
 This file supersedes any duplicate copies. If multiple copies exist in different repos, they MUST be kept identical to this canonical version. Cursor MUST use this file as the authoritative source for all API call shapes, error codes, and response contracts. If any other document conflicts with this file, this file wins.
@@ -316,10 +316,28 @@ Response 200:
     },
     "proposal_regenerations": {
       "limit_per_proposal": 0
+    },
+    "reports": {
+      "limit": 0,
+      "used": 0,
+      "remaining": 0,
+      "period": "BILLING_CYCLE",
+      "reset_at": "ISO-8601 timestamp or null"
+    },
+    "report_exports": {
+      "limit": 0,
+      "used": 0,
+      "remaining": 0,
+      "period": "BILLING_CYCLE",
+      "reset_at": "ISO-8601 timestamp or null"
     }
   }
 }
 ```
+
+**M&E entitlement limits (Stage J):**
+- **FREE / GROWTH:** `reports.limit` = 0 (M&E not available; entry points return `403 UPGRADE_REQUIRED`).
+- **IMPACT:** `reports.limit` = 2 per billing cycle; `report_exports` idempotent per report version (mirrors proposal `DOCX_EXPORT` pattern).
 
 Errors:
 
@@ -434,6 +452,7 @@ json
   "annual_budget_currency": "USD | GBP | EUR | INR | KES | string or null",
   "monitoring_and_evaluation_practices": "string or null",
   "funders_worked_with_before": ["string"],
+  "knowledge_bank": {},
   "profile_status": "DRAFT | COMPLETE",
   "completeness_score": 0,
   "missing_fields": ["string"],
@@ -541,6 +560,50 @@ Errors:
 
 - 401 `UNAUTHORIZED`
 - 404 `PROFILE_NOT_FOUND` (no profile exists for this user)
+- 500 `INTERNAL_SERVER_ERROR`
+
+---
+
+### 6.5 PUT /api/ngo-profile/knowledge-bank
+
+Purpose: save user-provided data to NGO profile knowledge bank for reuse across proposals.
+
+Auth: REQUIRED
+
+Request:
+
+```json
+{
+  "entries": [
+    {
+      "key": "string",
+      "text": "string",
+      "opportunity_id": "string or null"
+    }
+  ]
+}
+```
+
+Response 200:
+
+```json
+{
+  "knowledge_bank": {
+    "key_name": {
+      "text": "string",
+      "source": "user_input",
+      "opportunity_id": "string or null",
+      "updated_at": "ISO-8601"
+    }
+  }
+}
+```
+
+Errors:
+
+- 401 `UNAUTHORIZED`
+- 404 `PROFILE_NOT_FOUND`
+- 422 `VALIDATION_ERROR` (empty `key` or `text`)
 - 500 `INTERNAL_SERVER_ERROR`
 
 ---
@@ -704,7 +767,7 @@ Valid values for the `status` field on all proposal responses:
 
 | Status | Meaning |
 |--------|---------|
-| `DRAFT` | Proposal persisted, generation complete (default terminal state for successful generation) |
+| `DRAFT` | Proposal persisted and usable; includes fully generated proposals and proposals with `NEEDS_USER_INPUT` sections (as long as there are no `FAILED` sections) |
 | `DEGRADED` | Generated with degraded inputs (e.g., missing `requirements_json`); safe placeholders used |
 | `FAILED` | All sections failed to generate; proposal was NOT persisted (only visible in error responses, never in GET) |
 
@@ -772,6 +835,61 @@ Errors:
 
 ---
 
+### 9.1A POST /api/proposals/pre-flight
+
+Purpose: run pre-generation gap check against NGO profile for a specific funding opportunity. No OpenAI calls. No quota consumption.
+
+Auth: REQUIRED
+
+Request:
+
+```json
+{
+  "funding_opportunity_id": "uuid",
+  "selected_variant_id": "string or null"
+}
+```
+
+Response 200:
+
+```json
+{
+  "opportunity_title": "string",
+  "variant_id": "string",
+  "ready_to_generate": true,
+  "readiness_percent": 67,
+  "sections": [
+    {
+      "submission_item_id": "string",
+      "label": "string",
+      "status": "READY | NEEDS_INPUT | MANUAL_REQUIRED",
+      "missing_fields": ["string"],
+      "prompt_for_user": "string or null",
+      "generation_allowed": true
+    }
+  ],
+  "summary": {
+    "total_sections": 6,
+    "ready": 3,
+    "needs_input": 2,
+    "manual_required": 1
+  }
+}
+```
+
+Readiness calculation:
+- `readiness_percent = (READY sections / generatable sections) * 100` (rounded to nearest integer)
+- `MANUAL_REQUIRED` sections are excluded from the denominator
+- `ready_to_generate = true` only when `readiness_percent == 100`
+
+Errors:
+- 401 `UNAUTHORIZED`
+- 404 `OPPORTUNITY_NOT_FOUND`
+- 409 `PROFILE_INCOMPLETE`
+- 500 `INTERNAL_SERVER_ERROR`
+
+---
+
 ### 9.2 GET /api/proposals/{id}
 
 Purpose: retrieve proposal with full `content_json` including per-section statuses.
@@ -796,7 +914,8 @@ Response 200 (ProposalDetailResponse):
       {
         "submission_item_id": "string",
         "label": "string",
-        "generation_status": "GENERATED | FAILED | MANUAL_REQUIRED",
+        "generation_status": "GENERATED | FAILED | MANUAL_REQUIRED | NEEDS_USER_INPUT",
+        "missing_inputs": ["string"],
         "archetype": "string or null",
         "content": {
           "text": "string",
@@ -815,6 +934,7 @@ Response 200 (ProposalDetailResponse):
       "generated": 0,
       "failed": 0,
       "manual_required": 0,
+      "needs_user_input": 0,
       "warnings": ["string"]
     }
   }
@@ -828,6 +948,7 @@ Response 200 (ProposalDetailResponse):
 | `GENERATED` | Show content normally with section heading |
 | `FAILED` | Show "This section could not be generated." + retry option (regenerate) |
 | `MANUAL_REQUIRED` | Show "This section requires manual input. AI generation is not available for this item." — no retry button |
+| `NEEDS_USER_INPUT` | Show missing data prompts + input field + "Save & Regenerate" button |
 
 Errors:
 
@@ -977,7 +1098,7 @@ When returned by any endpoint, `details.missing_fields[]` MUST be provided:
   "error_code": "QUOTA_EXCEEDED",
   "message": "Quota exceeded.",
   "details": {
-    "entitlement": "fit_scans | proposals | proposal_regenerations | docx_exports",
+    "entitlement": "fit_scans | proposals | proposal_regenerations | docx_exports | reports | report_exports",
     "limit": 0,
     "used": 0,
     "remaining": 0,
@@ -986,6 +1107,23 @@ When returned by any endpoint, `details.missing_fields[]` MUST be provided:
   }
 }
 ```
+
+### 10.3 403 UPGRADE_REQUIRED (M&E — Free/Growth)
+
+Returned when a Free or Growth user hits any M&E entry point or `/api/reports*` endpoint (Stage J).
+
+```json
+{
+  "error_code": "UPGRADE_REQUIRED",
+  "message": "M&E reporting is available on the Impact plan.",
+  "details": {
+    "required_plan": "IMPACT",
+    "feature": "me_reports"
+  }
+}
+```
+
+**Distinct from** `429 QUOTA_EXCEEDED`, which Impact users receive when the bundled 2-reports/month quota is exhausted.
 
 ---
 
@@ -1000,7 +1138,609 @@ These requirements ensure OpenAPI spec stays in sync with this contract. They ar
 5. **NGO profile path:** Backend routes MUST use `/api/ngo-profile*` (with `/api` prefix) — not bare `/ngo-profile*`.
 
 
+## 12) M&E Module — Donor Report Writer (Stage B — Locked)
+
+**Status:** Stage B structure lock · **Implementation:** Stage C onward  
+**Scope:** All `/api/reports*` and `/api/report-templates*` endpoints  
+**Entitlement:** `IMPACT` plan required for all endpoints in this section (Stage J enforcement). Free/Growth receive `403 UPGRADE_REQUIRED` (§10.3).  
+**Feature flag:** Backend `ME_MODULE_ENABLED`; frontend `NEXT_PUBLIC_ME_MODULE_ENABLED` (separate repo)
+
+**Canonical path prefix:** All M&E routes use `/api/reports/{id}/...` — no `donor-reports` path segment. (Code path alignment: A-03.)
+
+### 12.0 M&E Response Envelope Conventions (LOCKED)
+
+These rules apply **only** to §12 endpoints. Existing §1–§11 envelopes are unchanged.
+
+| Pattern | Rule | Rationale |
+|---------|------|-----------|
+| Single-resource success | **Top-level object** — no `{ "report": {...} }` wrapper | Aligns with `GET /api/proposals/{id}` and post-audit NGO profile (§6.1) |
+| List endpoints | Named array wrapper: `{ "reports": [...] }`, `{ "report_templates": [...] }` | Aligns with `GET /api/proposals` |
+| Sub-resource reads | **Top-level object** with descriptive fields (`readiness_score`, `stage`, etc.) | Avoids `ngo_profile`-style wrapper drift noted in audit_1603 |
+| Errors | Standard error model (§1) | Unchanged |
+| Timestamps | ISO-8601 UTC | Unchanged |
+| UUIDs | String | Unchanged |
+
+**Explicit non-wrapper decision:** `GET /api/reports/{id}` returns the report fields at the top level — same pattern as `ProposalDetailResponse`.
+
+**Independence:** M&E report creation does **not** require `funding_opportunity_id`. `linked_proposal_id` is optional only.
+
+**Job model (canonical):** Pipeline execution uses `POST /api/reports/{id}/job` (enqueue) + `GET /api/reports/{id}/job` (poll). There is no synchronous `POST .../generate` endpoint.
+
+---
+
+### 12.1 GET /api/report-templates
+
+Purpose: list active funder report templates for template picker.
+
+Auth: REQUIRED · Entitlement: IMPACT (Stage J)
+
+Query params: `region` (optional filter)
+
+Response 200:
+
+```json
+{
+  "report_templates": [
+    {
+      "id": "uuid",
+      "funder_name": "string",
+      "template_name": "string",
+      "region": "string",
+      "reporting_frequency": "end_of_grant | annual | quarterly | interim | final",
+      "version": 1
+    }
+  ]
+}
+```
+
+Errors: 401 `UNAUTHORIZED` · 403 `FORBIDDEN` · 500 `INTERNAL_SERVER_ERROR`
+
+---
+
+### 12.2 POST /api/reports
+
+Purpose: create a donor report in `DRAFT` status.
+
+Auth: REQUIRED · Entitlement: IMPACT + report quota (Stage J)
+
+Request:
+
+```json
+{
+  "funder_report_template_id": "uuid",
+  "linked_proposal_id": "uuid or null",
+  "reporting_period_start": "YYYY-MM-DD",
+  "reporting_period_end": "YYYY-MM-DD"
+}
+```
+
+Response 200 (top-level ReportSummaryResponse):
+
+```json
+{
+  "id": "uuid",
+  "funder_report_template_id": "uuid",
+  "funder_name": "string",
+  "template_name": "string",
+  "linked_proposal_id": "uuid or null",
+  "reporting_period_start": "YYYY-MM-DD",
+  "reporting_period_end": "YYYY-MM-DD",
+  "status": "DRAFT",
+  "version": 1,
+  "created_at": "ISO-8601 timestamp",
+  "updated_at": "ISO-8601 timestamp"
+}
+```
+
+Errors:
+
+- 401 `UNAUTHORIZED`
+- 403 `FORBIDDEN`
+- 404 `TEMPLATE_NOT_FOUND`
+- 404 `PROPOSAL_NOT_FOUND` (when linked_proposal_id invalid)
+- 409 `PROFILE_INCOMPLETE` (same semantics as proposals — NGO profile required)
+- 429 `QUOTA_EXCEEDED` (`details.entitlement`: `reports`)
+- 422 `VALIDATION_ERROR`
+- 500 `INTERNAL_SERVER_ERROR`
+
+---
+
+### 12.3 POST /api/reports/{id}/documents
+
+Purpose: upload one document; triggers classification + extraction job.
+
+Auth: REQUIRED · Owner only
+
+Content-Type: `multipart/form-data`
+
+Form fields:
+
+| Field | Type | Required |
+|-------|------|----------|
+| `file` | binary | YES |
+
+Response 200 (top-level UploadedDocumentResponse):
+
+```json
+{
+  "id": "uuid",
+  "donor_report_id": "uuid",
+  "original_filename": "string",
+  "mime_type": "string",
+  "size_bytes": 0,
+  "classification": "proposal | grant_letter | mou | indicator_data | photo | deck | other | null",
+  "extraction_status": "PENDING | PROCESSING | COMPLETE | FAILED",
+  "created_at": "ISO-8601 timestamp",
+  "job_id": "uuid"
+}
+```
+
+**Notes:**
+- `storage_ref` is NEVER returned to clients.
+- `job_id` references `report_jobs` for watch-UI polling (§12.12).
+- Multiple uploads = multiple POST calls (batch upload post-MVP).
+
+Errors:
+
+- 401 `UNAUTHORIZED`
+- 403 `FORBIDDEN`
+- 404 `REPORT_NOT_FOUND`
+- 413 `FILE_TOO_LARGE` (limit in ENV_VARS — Stage C)
+- 415 `UNSUPPORTED_MEDIA_TYPE`
+- 422 `VALIDATION_ERROR`
+- 500 `INTERNAL_SERVER_ERROR`
+
+---
+
+### 12.4 GET /api/reports/{id}/knowledge-bank
+
+Purpose: Gate 1 — reconciled picture + conflicts.
+
+Auth: REQUIRED · Owner only
+
+Response 200 (top-level — no wrapper):
+
+```json
+{
+  "donor_report_id": "uuid",
+  "facts": {},
+  "conflicts": [],
+  "gate1_confirmed_at": "ISO-8601 or null",
+  "ready_for_gate1": true
+}
+```
+
+Shape of `facts` / `conflicts`: `DB_FIELD_CONTRACT_DONOR_REPORTS.md` §2.6.
+
+Errors: 401 · 403 · 404 `REPORT_NOT_FOUND` · 500
+
+---
+
+### 12.5 PATCH /api/reports/{id}/knowledge-bank
+
+**PROVISIONAL — confirm against Plan 1 (Track B) gate UI design before building.**
+
+Purpose: Gate 1 — human confirmations, conflict resolutions (alternate to POST §12.5a).
+
+Auth: REQUIRED · Owner only
+
+Request:
+
+```json
+{
+  "facts": {
+    "<fact_key>": {
+      "value": "any",
+      "confirmed": true
+    }
+  },
+  "conflict_resolutions": [
+    {
+      "fact_key": "string",
+      "resolved_value": "any"
+    }
+  ],
+  "confirm_gate1": true
+}
+```
+
+Response 200: same shape as GET §12.4.
+
+**Rules:**
+- When `confirm_gate1: true`, server sets `gate1_confirmed_at` and advances pipeline if valid.
+- Pipeline MUST NOT advance without `confirm_gate1: true` recorded.
+- 409 `GATE_NOT_SATISFIED` if unresolved conflicts remain.
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+### 12.5a POST /api/reports/{id}/knowledge-bank/gate1/confirm (canonical — implemented)
+
+Purpose: Gate 1 — human confirmation of reconciled knowledge bank.
+
+Auth: REQUIRED · Owner only
+
+Request: knowledge bank payload with confirmed facts (shape per Gate 1 service contract).
+
+Response 200: includes `gate1_confirmed_at` when confirmed.
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+### 12.6 GET /api/reports/{id}/gap-check
+
+**PROVISIONAL — confirm against Plan 1 (Track B) gate UI design before building.**
+
+Purpose: Gate 2 — readiness score + funder-aware missing items.
+
+Auth: REQUIRED · Owner only
+
+Response 200 (top-level):
+
+```json
+{
+  "donor_report_id": "uuid",
+  "readiness_score": 0,
+  "ready_for_gate2": false,
+  "missing_items": [
+    {
+      "item_key": "string",
+      "label": "string",
+      "prompt": "string",
+      "severity": "required | recommended",
+      "section_key": "string or null"
+    }
+  ],
+  "gate2_confirmed_at": "ISO-8601 or null"
+}
+```
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` (Gate 1 not complete) · 500
+
+---
+
+### 12.7 PATCH /api/reports/{id}/gap-answers
+
+**PROVISIONAL — confirm against Plan 1 (Track B) gate UI design before building.**
+
+Purpose: Gate 2 — free-text answers for genuinely missing items (alternate to POST §12.7a).
+
+Auth: REQUIRED · Owner only
+
+Request:
+
+```json
+{
+  "gap_answers": {
+    "<item_key>": {
+      "answer_text": "string"
+    }
+  },
+  "confirm_gate2": true
+}
+```
+
+Response 200: same shape as GET §12.6 (with updated `gate2_confirmed_at` when confirmed).
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+### 12.7a POST /api/reports/{id}/knowledge-bank/gate2/gap-responses (canonical — implemented)
+
+Purpose: Gate 2 — submit gap answers (answer-or-skip); sets `gate2_confirmed_at` when complete.
+
+Auth: REQUIRED · Owner only
+
+Request: gap response payload per Gate 2 service contract.
+
+Response 200: remaining gaps + `gate2_confirmed_at` when confirmed.
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+### 12.8 POST /api/reports/{id}/job
+
+Purpose: enqueue async report pipeline (classify → extract → reconcile → gap → synthesise → critique → export stage).
+
+Auth: REQUIRED · Owner only · Report quota enforced on successful pipeline completion (Stage J)
+
+Response 200:
+
+```json
+{
+  "job_id": "uuid",
+  "donor_report_id": "uuid",
+  "stage": "classify | extract | reconcile | gap | synthesise | critique | export",
+  "status": "queued | running | awaiting_human | failed | done"
+}
+```
+
+**Rules:**
+- Poll status via `GET /api/reports/{id}/job` (§12.12).
+- Requires prior gate preconditions per pipeline stage (Gate 1 before gap advance, etc.).
+- `REPORT_CREATE` quota decremented on successful report generation completion (exact trigger at implementation).
+- Reclaim of failed jobs at gate stages: implementation-defined (A-03).
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 409 `JOB_ALREADY_ACTIVE` · 429 `QUOTA_EXCEEDED` · 500
+
+---
+
+### 12.8a POST /api/reports/{id}/knowledge-bank/gate3/confirm (canonical — implemented)
+
+Purpose: Gate 3 — human confirmation after critic review; marks sections accepted for export.
+
+Auth: REQUIRED · Owner only
+
+Response 200: includes `gate3_confirmed_at` when confirmed.
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+### 12.9 GET /api/reports/{id}
+
+Purpose: full report state — Gate 3 review surface.
+
+Auth: REQUIRED · Owner only
+
+Response 200 (top-level ReportDetailResponse):
+
+```json
+{
+  "id": "uuid",
+  "funder_report_template_id": "uuid",
+  "funder_name": "string",
+  "template_name": "string",
+  "linked_proposal_id": "uuid or null",
+  "reporting_period_start": "YYYY-MM-DD",
+  "reporting_period_end": "YYYY-MM-DD",
+  "status": "DRAFT | EXTRACTING | AWAITING_REVIEW | GENERATING | DEGRADED | COMPLETE",
+  "version": 1,
+  "created_at": "ISO-8601 timestamp",
+  "updated_at": "ISO-8601 timestamp",
+  "content_json": {
+    "sections": [
+      {
+        "section_key": "string",
+        "label": "string",
+        "generation_status": "GENERATED | FAILED | AWAITING_REVIEW | ACCEPTED",
+        "content": {
+          "text": "string",
+          "assumptions": ["string"],
+          "evidence_used": ["string"]
+        },
+        "critic_flags": [
+          {
+            "claim_text": "string",
+            "severity": "BLOCK | WARN",
+            "reason": "string",
+            "accepted": false
+          }
+        ],
+        "failure_reason": "string or null",
+        "constraints_applied": {
+          "word_limit": 0,
+          "word_limit_respected": true
+        },
+        "human_edited": false,
+        "last_edited_at": "ISO-8601 or null"
+      }
+    ],
+    "generation_summary": {
+      "total_sections": 0,
+      "generated": 0,
+      "failed": 0,
+      "awaiting_review": 0,
+      "accepted": 0,
+      "critic_blocks": 0,
+      "warnings": ["string"]
+    }
+  },
+  "knowledge_bank_json": {},
+  "gap_analysis_json": {
+    "schema_version": "1.0.0",
+    "readiness_score": 0,
+    "ready_for_gate2": false,
+    "gaps": [
+      {
+        "item_key": "string",
+        "section_key": "string",
+        "section_label": "string",
+        "required_item_type": "indicator | table | section",
+        "required_item_ref": "string",
+        "severity": "required | recommended",
+        "question": "string",
+        "rationale": "string"
+      }
+    ],
+    "gap_agent": "gap_compliance_agent",
+    "analyzed_at": "ISO-8601 or null",
+    "report_context": {
+      "report_type": "annual"
+    },
+    "agent_trace": {},
+    "error": "string or null"
+  },
+  "indicator_actuals_json": {},
+  "current_gate": "none | gate1 | gate2 | gate3",
+  "gate3_confirmed_at": "ISO-8601 or null"
+}
+```
+
+**Note:** Full JSONB payloads included on detail endpoint only — not on list (§12.10). `gap_analysis_json` shape matches `DB_FIELD_CONTRACT_DONOR_REPORTS.md` §2.9 (flattened E3 persist from `envelope_to_gap_analysis_json`).
+
+Errors: 401 · 403 · 404 · 500
+
+---
+
+### 12.10 GET /api/reports
+
+Purpose: list user's reports (dashboard).
+
+Auth: REQUIRED
+
+Query: `limit` (optional, default 10, max 50)
+
+Response 200:
+
+```json
+{
+  "reports": [
+    {
+      "id": "uuid",
+      "funder_name": "string",
+      "template_name": "string",
+      "status": "DRAFT | EXTRACTING | AWAITING_REVIEW | GENERATING | DEGRADED | COMPLETE",
+      "reporting_period_start": "YYYY-MM-DD",
+      "reporting_period_end": "YYYY-MM-DD",
+      "current_gate": "none | gate1 | gate2 | gate3",
+      "created_at": "ISO-8601 timestamp",
+      "updated_at": "ISO-8601 timestamp"
+    }
+  ]
+}
+```
+
+Errors: 401 · 500
+
+---
+
+### 12.11 PATCH /api/reports/{id}/sections/{key}
+
+**PROVISIONAL — confirm against Plan 1 (Track B) gate UI design before building.**
+
+Purpose: Gate 3 — human edit or accept critic flags for one section (alternate to POST §12.8a + detail GET).
+
+Auth: REQUIRED · Owner only
+
+Request:
+
+```json
+{
+  "content_text": "string or null",
+  "accept_critic_flags": ["claim_text"],
+  "accept_section": true
+}
+```
+
+Response 200: same shape as GET §12.9 (full detail).
+
+**Rules:**
+- `accept_section: true` marks section `generation_status: ACCEPTED`.
+- Export requires all required sections `ACCEPTED` and no unaccepted `BLOCK` critic flags.
+- Setting `confirm_gate3` equivalent: when all sections accepted, server sets `gate3_confirmed_at` on knowledge bank and `status: COMPLETE`.
+
+Errors: 401 · 403 · 404 · 404 `SECTION_NOT_FOUND` · 409 `GATE_NOT_SATISFIED` · 422 · 500
+
+---
+
+### 12.12 GET /api/reports/{id}/job
+
+Purpose: async pipeline status ("watch the agents work" UI).
+
+Auth: REQUIRED · Owner only
+
+Query: `job_id` (optional — latest active job if omitted)
+
+Response 200 (top-level):
+
+```json
+{
+  "job_id": "uuid",
+  "donor_report_id": "uuid",
+  "stage": "classify | extract | reconcile | gap | synthesise | critique | export",
+  "status": "queued | running | awaiting_human | failed | done",
+  "agent_trace_json": {
+    "runs": [],
+    "total_estimated_cost_usd": 0.0
+  },
+  "error": "string or null",
+  "started_at": "ISO-8601 or null",
+  "finished_at": "ISO-8601 or null",
+  "current_gate": "none | gate1 | gate2 | gate3"
+}
+```
+
+Errors: 401 · 403 · 404 · 404 `JOB_NOT_FOUND` · 500
+
+---
+
+### 12.13 POST /api/reports/{id}/export
+
+Purpose: render funder-formatted DOCX (idempotent).
+
+Auth: REQUIRED · Owner only
+
+Request:
+
+```json
+{
+  "export_format": "DOCX"
+}
+```
+
+Response 200: binary DOCX stream
+
+Headers:
+
+- `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+- `Content-Disposition: attachment; filename="report-{id}.docx"`
+
+**Rules:**
+- Idempotent re-download does not consume quota.
+- First successful export per report version consumes `REPORT_EXPORT` quota (Stage J).
+- Requires Gate 3 complete / `status: COMPLETE` or `DEGRADED` with all accepted sections.
+- Non-200 responses: JSON error envelope (§1).
+
+Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 409 `EXPORT_NOT_READY` · 422 `UNSUPPORTED_FORMAT` · 429 `QUOTA_EXCEEDED` · 500
+
+---
+
+### 12.14 M&E Error Codes (additive)
+
+| error_code | HTTP | When |
+|------------|------|------|
+| `REPORT_NOT_FOUND` | 404 | Report id invalid or not owned |
+| `TEMPLATE_NOT_FOUND` | 404 | Template id invalid or inactive |
+| `JOB_NOT_FOUND` | 404 | Job id invalid |
+| `SECTION_NOT_FOUND` | 404 | section_key not in template |
+| `GATE_NOT_SATISFIED` | 409 | Human gate prerequisite missing |
+| `EXPORT_NOT_READY` | 409 | Gate 3 incomplete or critic blocks remain |
+| `FILE_TOO_LARGE` | 413 | Upload exceeds limit |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | MIME not allowed |
+| `UPGRADE_REQUIRED` | 403 | Free/Growth M&E entry (§10.3) |
+
+Quota errors use existing `QUOTA_EXCEEDED` with `details.entitlement`: `reports` | `report_exports`.
+
+---
+
 ## Changelog
+
+### 2026-05-24 — M&E Module Stage B contract lock
+
+**Decision:** Stage B structure lock for Donor Report Writer module. No existing §1–§11 endpoint shapes altered.
+
+**Adds:**
+1. **Section 12:** Full M&E API surface (13 endpoints) with locked envelope conventions.
+2. Explicit top-level response objects for single-resource endpoints (no `report` wrapper).
+3. Named list wrappers for collection endpoints.
+4. Stage J entitlements on **IMPACT** (2 reports/month bundled) and §4 `reports` / `report_exports` blocks (§12.0).
+
+**Governance:** Field contracts in `docs/artefacts/me_module/DB_FIELD_CONTRACT_*.md`; enums in `ENUM_REGISTRY.md` §5.
+
+---
 
 ### 2026-03-16 — Contract alignment to live backend (Phase 1)
 
