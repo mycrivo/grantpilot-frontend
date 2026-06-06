@@ -27,6 +27,7 @@ import { TagInput } from "@/components/profile/TagInput";
 type ProfileFormProps = {
   fromStart: boolean;
   opportunityId?: string;
+  returnTo?: string;
 };
 
 type ProfilePageState =
@@ -249,7 +250,7 @@ function relativeLastSaved(updatedAt: string, nowMs: number) {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
+export function ProfileForm({ fromStart, opportunityId, returnTo }: ProfileFormProps) {
   const router = useRouter();
   const [pageState, setPageState] = useState<ProfilePageState>({ mode: "LOADING" });
   const [formProfile, setFormProfile] = useState<NgoProfile>(defaultProfile());
@@ -468,7 +469,13 @@ export function ProfileForm({ fromStart, opportunityId }: ProfileFormProps) {
       setSavedMessage(successMessage);
       setToast({ tone: "success", message: "Profile saved successfully" });
 
-      if (fromStart && opportunityId && response.profile_status === "COMPLETE") {
+      if (returnTo && response.profile_status === "COMPLETE") {
+        setRedirecting(true);
+        setSavedMessage("Profile complete — returning to your report…");
+        window.setTimeout(() => {
+          router.push(returnTo);
+        }, 900);
+      } else if (fromStart && opportunityId && response.profile_status === "COMPLETE") {
         setRedirecting(true);
         setSavedMessage("Profile complete — checking your fit now…");
         window.setTimeout(() => {

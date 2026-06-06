@@ -107,3 +107,23 @@ export async function regenerateProposal(proposalId: string): Promise<unknown> {
     body: JSON.stringify({ mode: "FULL" }),
   });
 }
+
+/** GET /api/proposals — API_CONTRACT.md §9.3 */
+export type ProposalListItem = {
+  id: string;
+  funding_opportunity_id: string;
+  fit_scan_id: string | null;
+  opportunity_title: string | null;
+  status: "DRAFT" | "DEGRADED";
+  version: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProposalListResponse = {
+  proposals: ProposalListItem[];
+};
+
+export async function listProposals(limit = 20): Promise<ProposalListResponse> {
+  return apiRequest<ProposalListResponse>(`/api/proposals?limit=${limit}`, { method: "GET" });
+}

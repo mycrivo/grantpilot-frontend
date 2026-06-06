@@ -10,11 +10,13 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const opportunity = Array.isArray(resolvedParams.opportunity_id)
     ? resolvedParams.opportunity_id[0]
     : resolvedParams.opportunity_id;
+  const returnTo = from === "reports_new" ? "/reports/new" : undefined;
 
   return (
     <ProfileForm
       fromStart={from === "start"}
       opportunityId={opportunity}
+      returnTo={returnTo}
     />
   );
 }
