@@ -228,3 +228,38 @@ export const GATE2_LABEL = {
   WHY_PREFIX: "",
   SECTION_SEPARATOR: " · ",
 } as const;
+
+/** Screen 8 — Gate 3 draft review (ME_MODULE_REPORTS_NGO_UI.html). */
+export const GATE3_SECTION_STATUS_LABEL = {
+  CHECKED: "Checked",
+  EDITED: "Edited",
+  NEEDS_REVIEW: "Needs review",
+  NOT_PROVIDED: "Not provided",
+} as const;
+
+export const GATE3_CRITIC_SEVERITY_LABEL = {
+  BLOCK: "Block",
+  WARN: "Warning",
+} as const;
+
+export const GATE3_LABEL = {
+  TITLE: "Review your draft report",
+  SUBTITLE: "The draft follows the funder\u2019s structure and uses the facts you confirmed.",
+  SOURCE_CHECK_TITLE: "Source check needed",
+  SOURCE_CHECK_MULTIPLE: "Several sections need your review before download.",
+  SECTIONS_EYEBROW: "Report sections",
+  TRUST_LINE: "You stay the author. Review, edit, and approve the report before downloading.",
+  DOWNLOAD_DOCX: "Download DOCX",
+  APPROVING: "Approving\u2026",
+  SAVE_SECTION: "Save section",
+  EDIT_SECTION: "Edit section",
+  ADD_CONTENT: "Add content",
+  CANCEL: "Cancel",
+  SAVING: "Saving\u2026",
+  EDIT_SECTION_LABEL: "Edit section text",
+  NOT_PROVIDED_PREVIEW:
+    "No content provided for this section. It will appear in the report as \u201cnot provided\u201d.",
+  BACK_TO_QUESTIONS: "Back to questions",
+  REVIEW_ISSUE: "Review issue",
+  REVIEW_BEFORE_DOWNLOAD: "Please review before download.",
+} as const;
