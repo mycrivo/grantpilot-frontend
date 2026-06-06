@@ -1,12 +1,16 @@
 import type { ReactNode } from "react";
 
-type Plan = "FREE" | "GROWTH" | "IMPACT";
+import { PLAN_DETAILS, type Plan } from "@/lib/plans";
+
 type QuotaAction = "FIT_SCAN" | "PROPOSAL_CREATE" | "PROPOSAL_REGEN";
 
 type QuotaGateProps = {
   action: QuotaAction;
   plan: Plan;
   isAllowed: boolean;
+  /** Live limit from GET /api/me/entitlements for the gated resource. */
+  resourceLimit: number;
+  proposalRegenerationsLimit?: number;
   resetDate?: string;
   children: ReactNode;
   onUpgrade?: (plan: "GROWTH" | "IMPACT") => void;
@@ -18,7 +22,13 @@ type ExhaustedState = {
   targetPlan?: "GROWTH" | "IMPACT";
 };
 
-function buildExhaustedState(action: QuotaAction, plan: Plan, resetDate?: string): ExhaustedState {
+function buildExhaustedState(
+  action: QuotaAction,
+  plan: Plan,
+  resourceLimit: number,
+  proposalRegenerationsLimit: number | undefined,
+  resetDate?: string,
+): ExhaustedState {
   const resolvedDate = resetDate ?? "{date}";
 
   if (action === "FIT_SCAN") {
@@ -32,14 +42,14 @@ function buildExhaustedState(action: QuotaAction, plan: Plan, resetDate?: string
 
     if (plan === "GROWTH") {
       return {
-        message: "You've used all 10 Fit Scans this month. Upgrade to Impact for 20 scans per month.",
+        message: `You've used all ${resourceLimit} Fit Scans this month. Upgrade to Impact for ${PLAN_DETAILS.IMPACT.fitScansLimit} scans per month.`,
         ctaLabel: "Upgrade to Impact — $79/mo →",
         targetPlan: "IMPACT",
       };
     }
 
     return {
-      message: `You've used all 20 Fit Scans this month. Your quota resets on ${resolvedDate}.`,
+      message: `You've used all ${resourceLimit} Fit Scans this month. Your quota resets on ${resolvedDate}.`,
     };
   }
 
@@ -54,14 +64,14 @@ function buildExhaustedState(action: QuotaAction, plan: Plan, resetDate?: string
 
     if (plan === "GROWTH") {
       return {
-        message: "You've reached 3 proposals this month. Upgrade to Impact for 5 per month.",
+        message: `You've reached ${resourceLimit} proposals this month. Upgrade to Impact for ${PLAN_DETAILS.IMPACT.proposalsLimit} per month.`,
         ctaLabel: "Upgrade to Impact — $79/mo →",
         targetPlan: "IMPACT",
       };
     }
 
     return {
-      message: `You've reached 5 proposals this month. Your quota resets on ${resolvedDate}.`,
+      message: `You've reached ${resourceLimit} proposals this month. Your quota resets on ${resolvedDate}.`,
     };
   }
 
@@ -73,8 +83,9 @@ function buildExhaustedState(action: QuotaAction, plan: Plan, resetDate?: string
     };
   }
 
+  const regenLimit = proposalRegenerationsLimit ?? resourceLimit;
   return {
-    message: "You've used all 3 regenerations for this proposal.",
+    message: `You've used all ${regenLimit} regenerations for this proposal.`,
   };
 }
 
@@ -82,6 +93,8 @@ export function QuotaGate({
   action,
   plan,
   isAllowed,
+  resourceLimit,
+  proposalRegenerationsLimit,
   resetDate,
   children,
   onUpgrade,
@@ -90,7 +103,7 @@ export function QuotaGate({
     return <>{children}</>;
   }
 
-  const state = buildExhaustedState(action, plan, resetDate);
+  const state = buildExhaustedState(action, plan, resourceLimit, proposalRegenerationsLimit, resetDate);
 
   return (
     <div className="card border-brand-border">

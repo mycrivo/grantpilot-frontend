@@ -3,26 +3,11 @@
 import Link from "next/link";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import type { EntitlementQuotaBlock, EntitlementsResponse } from "@/lib/api/entitlements";
 import { PLAN_DETAILS, type Plan } from "@/lib/plans";
 
-type QuotaBlock = {
-  limit: number;
-  used: number;
-  remaining: number;
-  period: "LIFETIME" | "BILLING_CYCLE";
-  reset_at: string | null;
-};
-
-type Entitlements = {
-  plan: Plan;
-  entitlements: {
-    fit_scans: QuotaBlock;
-    proposals: QuotaBlock;
-  };
-};
-
 type QuotaOverviewProps = {
-  payload: Entitlements;
+  payload: EntitlementsResponse;
 };
 
 function toPercent(used: number, limit: number) {
@@ -35,11 +20,11 @@ function toPercent(used: number, limit: number) {
   return Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
 }
 
-function usageLabel(quota: QuotaBlock) {
+function usageLabel(quota: EntitlementQuotaBlock) {
   if (!Number.isFinite(quota.used) || !Number.isFinite(quota.limit)) {
     return "—";
   }
-  return `${quota.used} / ${quota.limit} used`;
+  return `${quota.remaining} / ${quota.limit} remaining`;
 }
 
 function relativeResetLabel(resetAt: string | null) {
@@ -73,7 +58,7 @@ function QuotaBar({
   plan,
 }: {
   title: string;
-  quota: QuotaBlock;
+  quota: EntitlementQuotaBlock;
   plan: Plan;
 }) {
   const percent = toPercent(quota.used, quota.limit);
@@ -120,15 +105,20 @@ function QuotaBar({
 }
 
 export function QuotaOverview({ payload }: QuotaOverviewProps) {
+  const showReportsBar = payload.entitlements.reports.limit > 0;
+
   return (
     <section className="card space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h3>Quota Overview</h3>
         <PlanBadge plan={payload.plan} />
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className={`grid gap-4 ${showReportsBar ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         <QuotaBar title="Fit Scans" quota={payload.entitlements.fit_scans} plan={payload.plan} />
         <QuotaBar title="Proposals" quota={payload.entitlements.proposals} plan={payload.plan} />
+        {showReportsBar ? (
+          <QuotaBar title="Donor Reports" quota={payload.entitlements.reports} plan={payload.plan} />
+        ) : null}
       </div>
     </section>
   );

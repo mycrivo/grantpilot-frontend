@@ -13,6 +13,8 @@ type UpgradeNudgeProps = {
   exhaustedResource: ExhaustedResource;
   resetAt: string;
   currentOpportunityTitle: string | null;
+  /** Live limit from GET /api/me/entitlements for the exhausted resource. */
+  resourceLimit?: number;
 };
 
 function formatDate(value: string) {
@@ -23,14 +25,21 @@ function formatDate(value: string) {
   return parsed.toLocaleDateString();
 }
 
-export function UpgradeNudge({ exhaustedResource, resetAt, currentOpportunityTitle }: UpgradeNudgeProps) {
+export function UpgradeNudge({
+  exhaustedResource,
+  resetAt,
+  currentOpportunityTitle,
+  resourceLimit,
+}: UpgradeNudgeProps) {
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState<ApiClientError | null>(null);
 
   const resourceName = resourceLabel(exhaustedResource);
-  const resourceLimit =
-    exhaustedResource === "fit_scans" ? PLAN_DETAILS.GROWTH.fitScansLimit : PLAN_DETAILS.GROWTH.proposalsLimit;
   const formattedDate = formatDate(resetAt);
+  const headline =
+    resourceLimit !== undefined
+      ? `You've used all ${resourceLimit} ${resourceName} this month`
+      : `You've used all your ${resourceName} this month`;
 
   const runUpgrade = async () => {
     setActionError(null);
@@ -54,9 +63,7 @@ export function UpgradeNudge({ exhaustedResource, resetAt, currentOpportunityTit
 
   return (
     <div className="card space-y-4 border-brand-warning/30 bg-brand-warning/5">
-      <h4>
-        You&apos;ve used all {resourceLimit} {resourceName} this month
-      </h4>
+      <h4>{headline}</h4>
       <p className="text-secondary">
         Your {resourceName} reset on {formattedDate}. Need more capacity now?
       </p>
@@ -67,7 +74,8 @@ export function UpgradeNudge({ exhaustedResource, resetAt, currentOpportunityTit
       <div className="rounded-[8px] border border-brand-border bg-white p-4">
         <p className="font-semibold">Upgrade to Impact — {PLAN_DETAILS.IMPACT.priceLabel}</p>
         <p className="mt-1 text-sm text-secondary">
-          {PLAN_DETAILS.IMPACT.proposalsLimit} proposals/month + {PLAN_DETAILS.IMPACT.fitScansLimit} fit scans
+          {PLAN_DETAILS.IMPACT.proposalsLimit} proposals/month + {PLAN_DETAILS.IMPACT.fitScansLimit} fit scans +{" "}
+          {PLAN_DETAILS.IMPACT.donorReportsLabel}
         </p>
         <button
           type="button"
@@ -84,4 +92,3 @@ export function UpgradeNudge({ exhaustedResource, resetAt, currentOpportunityTit
     </div>
   );
 }
-

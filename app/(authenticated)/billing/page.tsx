@@ -3,59 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { PlanCard } from "@/components/billing/PlanCard";
-import { UsageBar } from "@/components/billing/UsageBar";
+import { QuotaOverview } from "@/components/dashboard/QuotaOverview";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import type { EntitlementsResponse } from "@/lib/api/entitlements";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
-import { PLAN_DETAILS, type Plan } from "@/lib/plans";
-
-type EntitlementsResponse = {
-  plan: Plan;
-  entitlements: {
-    fit_scans: {
-      limit: number;
-      used: number;
-      remaining: number;
-      period: "LIFETIME" | "BILLING_CYCLE";
-      reset_at: string | null;
-    };
-    proposals: {
-      limit: number;
-      used: number;
-      remaining: number;
-      period: "LIFETIME" | "BILLING_CYCLE";
-      reset_at: string | null;
-    };
-    proposal_regenerations: {
-      limit_per_proposal: number;
-    };
-  };
-};
+import { PLAN_DETAILS } from "@/lib/plans";
 
 type CheckoutResponse = { checkout_url: string };
 type PortalResponse = { portal_url: string };
-
-function relativeResetLabel(period: "LIFETIME" | "BILLING_CYCLE", resetAt: string | null) {
-  if (period === "LIFETIME") {
-    return "Lifetime";
-  }
-  if (!resetAt) {
-    return "Reset date unavailable";
-  }
-  const target = new Date(resetAt);
-  if (Number.isNaN(target.getTime())) {
-    return "Reset date unavailable";
-  }
-  const diffDays = Math.ceil((target.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) {
-    return "Resets today";
-  }
-  if (diffDays === 1) {
-    return "Resets in 1 day";
-  }
-  return `Resets in ${diffDays} days`;
-}
 
 export default function BillingPage() {
   const [loading, setLoading] = useState(true);
@@ -147,8 +104,6 @@ export default function BillingPage() {
     return <ErrorDisplay title="Billing unavailable" error={loadError} />;
   }
 
-  const fitScans = entitlements.entitlements.fit_scans;
-  const proposals = entitlements.entitlements.proposals;
   const isFreePlan = entitlements.plan === "FREE";
 
   return (
@@ -161,16 +116,9 @@ export default function BillingPage() {
             tone={entitlements.plan === "FREE" ? "neutral" : entitlements.plan === "GROWTH" ? "warning" : "success"}
           />
         </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <UsageBar label="Fit Scans" used={fitScans.used} limit={fitScans.limit} />
-          <UsageBar label="Proposals" used={proposals.used} limit={proposals.limit} />
-        </div>
-        <p className="text-sm text-secondary">
-          Fit Scans: {relativeResetLabel(fitScans.period, fitScans.reset_at)} · Proposals:{" "}
-          {relativeResetLabel(proposals.period, proposals.reset_at)}
-        </p>
       </div>
+
+      <QuotaOverview payload={entitlements} />
 
       {actionError ? <ErrorDisplay error={actionError} /> : null}
 
@@ -184,6 +132,7 @@ export default function BillingPage() {
               fitScans={`${PLAN_DETAILS.GROWTH.fitScansLimit}/month`}
               proposals={`${PLAN_DETAILS.GROWTH.proposalsLimit}/month`}
               regenerations={`${PLAN_DETAILS.GROWTH.regenerationsPerProposal} per proposal`}
+              meReports={PLAN_DETAILS.GROWTH.meReportsLabel}
               buttonLabel="Upgrade to Growth"
               loading={activeCheckoutPlan === "GROWTH"}
               disabled={activeCheckoutPlan !== null}
@@ -195,6 +144,8 @@ export default function BillingPage() {
               fitScans={`${PLAN_DETAILS.IMPACT.fitScansLimit}/month`}
               proposals={`${PLAN_DETAILS.IMPACT.proposalsLimit}/month`}
               regenerations={`${PLAN_DETAILS.IMPACT.regenerationsPerProposal} per proposal`}
+              meReports={PLAN_DETAILS.IMPACT.donorReportsLabel}
+              prioritySupport={PLAN_DETAILS.IMPACT.prioritySupportLabel}
               buttonLabel="Upgrade to Impact"
               loading={activeCheckoutPlan === "IMPACT"}
               disabled={activeCheckoutPlan !== null}
@@ -221,4 +172,3 @@ export default function BillingPage() {
     </section>
   );
 }
-

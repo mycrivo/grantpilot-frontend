@@ -8,32 +8,10 @@ import { ProposalList } from "@/components/dashboard/ProposalList";
 import { QuotaOverview } from "@/components/dashboard/QuotaOverview";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
+import type { EntitlementsResponse } from "@/lib/api/entitlements";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { fetchCompleteness } from "@/lib/profile-service";
 import type { ProfileCompleteness } from "@/lib/profile-types";
-
-type EntitlementsResponse = {
-  plan: "FREE" | "GROWTH" | "IMPACT";
-  entitlements: {
-    fit_scans: {
-      limit: number;
-      used: number;
-      remaining: number;
-      period: "LIFETIME" | "BILLING_CYCLE";
-      reset_at: string | null;
-    };
-    proposals: {
-      limit: number;
-      used: number;
-      remaining: number;
-      period: "LIFETIME" | "BILLING_CYCLE";
-      reset_at: string | null;
-    };
-    proposal_regenerations: {
-      limit_per_proposal: number;
-    };
-  };
-};
 
 type FitScanListResponse = {
   fit_scans: Array<{

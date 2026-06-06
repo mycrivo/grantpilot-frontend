@@ -6,6 +6,8 @@ type PlanCardProps = {
   fitScans: string;
   proposals: string;
   regenerations: string;
+  meReports?: string;
+  prioritySupport?: string;
   buttonLabel: string;
   loading: boolean;
   disabled: boolean;
@@ -18,6 +20,8 @@ export function PlanCard({
   fitScans,
   proposals,
   regenerations,
+  meReports,
+  prioritySupport,
   buttonLabel,
   loading,
   disabled,
@@ -33,6 +37,8 @@ export function PlanCard({
         <li>Fit Scans: {fitScans}</li>
         <li>Proposals: {proposals}</li>
         <li>Regenerations: {regenerations}</li>
+        {meReports ? <li>{meReports}</li> : null}
+        {prioritySupport ? <li>{prioritySupport}</li> : null}
       </ul>
       <button
         type="button"

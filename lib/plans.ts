@@ -13,18 +13,20 @@ export const PLAN_DETAILS = {
     fitScansLimit: 10,
     proposalsLimit: 3,
     regenerationsPerProposal: 3,
+    meReportsLabel: "No M&E reports",
   },
   IMPACT: {
     label: "Impact Plan",
     marketingName: "Impact",
     priceLabel: "$79/mo",
-    fitScansLimit: 20,
+    fitScansLimit: 10,
     proposalsLimit: 5,
     regenerationsPerProposal: 3,
+    donorReportsLabel: "2 donor reports / month",
+    prioritySupportLabel: "Priority support",
   },
 } as const;
 
 export function resourceLabel(resource: ExhaustedResource): string {
   return resource === "fit_scans" ? "Fit Scans" : "proposals";
 }
-

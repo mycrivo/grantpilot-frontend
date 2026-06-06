@@ -1,10 +1,12 @@
 import Link from "next/link";
 
-import { PLAN_DETAILS, resourceLabel, type ExhaustedResource } from "@/lib/plans";
+import { resourceLabel, type ExhaustedResource } from "@/lib/plans";
 
 type LimitReachedProps = {
   exhaustedResource: ExhaustedResource;
   resetAt: string;
+  /** Live limit from GET /api/me/entitlements for the exhausted resource. */
+  resourceLimit?: number;
 };
 
 function formatDate(value: string) {
@@ -15,17 +17,17 @@ function formatDate(value: string) {
   return parsed.toLocaleDateString();
 }
 
-export function LimitReached({ exhaustedResource, resetAt }: LimitReachedProps) {
+export function LimitReached({ exhaustedResource, resetAt, resourceLimit }: LimitReachedProps) {
   const resourceName = resourceLabel(exhaustedResource);
-  const resourceLimit =
-    exhaustedResource === "fit_scans" ? PLAN_DETAILS.IMPACT.fitScansLimit : PLAN_DETAILS.IMPACT.proposalsLimit;
   const formattedDate = formatDate(resetAt);
+  const headline =
+    resourceLimit !== undefined
+      ? `You've used all ${resourceLimit} ${resourceName} this month`
+      : `You've used all your ${resourceName} this month`;
 
   return (
     <div className="card space-y-3 border-brand-border">
-      <h4>
-        You&apos;ve used all {resourceLimit} {resourceName} this month
-      </h4>
+      <h4>{headline}</h4>
       <p className="text-secondary">Your quota resets on {formattedDate}.</p>
       <p className="text-secondary">
         Need higher limits? Contact us at{" "}
@@ -39,4 +41,3 @@ export function LimitReached({ exhaustedResource, resetAt }: LimitReachedProps) 
     </div>
   );
 }
-
