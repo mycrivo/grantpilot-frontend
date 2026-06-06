@@ -183,3 +183,30 @@ export const REPORT_GATE_PLACEHOLDER_LABEL = {
   TITLE: "This review step is being finalized",
   BODY: "Interactive review for this step ships in a later update. Your report progress is saved.",
 } as const;
+
+/** Screen 6 — Gate 1 review facts (ME_MODULE_REPORTS_NGO_UI.html). */
+export const GATE1_LABEL = {
+  TITLE: "Review the project facts",
+  SUBTITLE: "These are the details we found. Confirm or correct them before the report is drafted.",
+  CONFIRMED_FACTS: "Confirmed facts",
+  CONFLICT_HEADING: "Two sources show different figures",
+  CONFLICT_SUBHEADING: "Which figure should the report use?",
+  CONFLICT_ENTER_OTHER: "Enter another figure",
+  CONFLICT_ENTER_OTHER_PROMPT: "Enter your value",
+  TRUST_LINE: "GrantPilot does not choose between conflicting figures. You decide what is correct.",
+  CONFIRM_FACTS: "Confirm facts",
+  ADD_FACT: "+ Add a fact",
+  FACT_CONFIRMED: "Confirmed",
+  FACT_EDIT: "Edit",
+  FACT_SAVE: "Save",
+  FACT_CANCEL: "Cancel",
+  SOURCE_PREFIX: "From:",
+  ADD_FACT_TITLE: "Add a fact",
+  ADD_FACT_LABEL: "Fact description",
+  ADD_FACT_VALUE: "Value",
+  ADD_FACT_SOURCE: "Source (optional)",
+  ADD_FACT_SAVE: "Add fact",
+  USER_SOURCE_LABEL: "Added by you",
+  CONFIRMING: "Confirming…",
+  SAVING: "Saving…",
+} as const;
