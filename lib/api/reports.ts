@@ -424,8 +424,12 @@ export function downloadReportExport(reportId: string, exportFormat: ReportExpor
 }
 
 /** §12.13 — fetch DOCX and trigger browser download. */
-export async function exportReportDocx(reportId: string): Promise<BlobDownloadResult> {
+export async function exportReportDocx(
+  reportId: string,
+  filenameOverride?: string,
+): Promise<BlobDownloadResult> {
   const result = await downloadReportExport(reportId);
-  triggerClientDownload({ blob: result.blob, filename: result.filename });
-  return result;
+  const filename = filenameOverride ?? result.filename;
+  triggerClientDownload({ blob: result.blob, filename });
+  return { ...result, filename };
 }

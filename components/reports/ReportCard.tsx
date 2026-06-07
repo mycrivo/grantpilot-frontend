@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type { ReportListItem } from "@/lib/api/reports";
+import { resolveReportDisplayNames } from "@/lib/report-display-names";
 
 import { resolveReportListStatusChip } from "./report-status-labels";
 
@@ -51,15 +52,18 @@ function formatLastUpdated(value: string): string {
 export function ReportCard({ report }: ReportCardProps) {
   const chip = resolveReportListStatusChip(report.status, report.current_gate);
   const reportHref = `/reports/${encodeURIComponent(report.id)}`;
+  const { title, funder } = resolveReportDisplayNames(report);
 
   return (
     <article className="flex flex-col gap-4 rounded-[12px] border border-brand-border bg-brand-card-bg p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        <h3 className="text-base font-bold text-brand-text-primary">{report.template_name}</h3>
+        <h3 className="text-base font-bold text-brand-text-primary">{title}</h3>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-secondary">
-          <span>
-            <span className="font-semibold text-brand-text-primary">{report.funder_name}</span>
-          </span>
+          {funder ? (
+            <span>
+              <span className="font-semibold text-brand-text-primary">{funder}</span>
+            </span>
+          ) : null}
           <span>
             Reporting period{" "}
             <span className="font-semibold text-brand-text-primary">

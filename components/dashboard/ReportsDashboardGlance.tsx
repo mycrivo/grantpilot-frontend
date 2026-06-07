@@ -3,6 +3,7 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { DASHBOARD_REPORTS_LABEL, resolveReportListStatusChip } from "@/components/reports/report-status-labels";
 import type { ReportListItem } from "@/lib/api/reports";
+import { resolveReportDisplayNames } from "@/lib/report-display-names";
 
 type ReportsDashboardGlanceProps = {
   reports: ReportListItem[];
@@ -24,12 +25,13 @@ export function ReportsDashboardGlance({ reports }: ReportsDashboardGlanceProps)
         <ul className="space-y-3">
           {reports.map((report) => {
             const chip = resolveReportListStatusChip(report.status, report.current_gate);
+            const { title, funder } = resolveReportDisplayNames(report);
             return (
               <li key={report.id} className="rounded-[8px] border border-brand-border p-3">
                 <Link href={`/reports/${encodeURIComponent(report.id)}`} className="space-y-2">
-                  <p className="font-semibold text-brand-text-primary">{report.template_name}</p>
+                  <p className="font-semibold text-brand-text-primary">{title}</p>
                   <div className="flex flex-wrap items-center gap-2 text-sm text-secondary">
-                    <span>{report.funder_name}</span>
+                    {funder ? <span>{funder}</span> : null}
                     <StatusBadge label={chip.label} tone={chip.tone} />
                   </div>
                 </Link>

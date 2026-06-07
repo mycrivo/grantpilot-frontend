@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 
 import type { ReportTemplateItem } from "@/lib/api/reports";
+import {
+  resolveReportDisplayFunder,
+  resolveReportDisplayTitle,
+} from "@/lib/report-display-names";
 
 type FunderTemplatePickerProps = {
   templates: ReportTemplateItem[];
@@ -15,6 +19,8 @@ export function FunderTemplatePicker({ templates, selectedId, onSelect }: Funder
   const [query, setQuery] = useState("");
 
   const selected = templates.find((item) => item.id === selectedId) ?? null;
+  const selectedTitle = selected ? resolveReportDisplayTitle(selected.template_name) : null;
+  const selectedFunder = selected ? resolveReportDisplayFunder(selected.funder_name) : null;
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -44,7 +50,11 @@ export function FunderTemplatePicker({ templates, selectedId, onSelect }: Funder
       >
         {selected ? (
           <span>
-            <span className="block font-semibold text-brand-text-primary">{selected.funder_name}</span>
+            {selectedFunder ? (
+              <span className="block font-semibold text-brand-text-primary">{selectedFunder}</span>
+            ) : (
+              <span className="block font-semibold text-brand-text-primary">{selectedTitle}</span>
+            )}
             <span className="block text-sm text-secondary">
               {selected.region} · Template ready
             </span>
@@ -74,7 +84,10 @@ export function FunderTemplatePicker({ templates, selectedId, onSelect }: Funder
             {filtered.length === 0 ? (
               <li className="px-4 py-3 text-sm text-secondary">No funders match your search.</li>
             ) : (
-              filtered.map((template) => (
+              filtered.map((template) => {
+                const displayTitle = resolveReportDisplayTitle(template.template_name);
+                const displayFunder = resolveReportDisplayFunder(template.funder_name);
+                return (
                 <li key={template.id}>
                   <button
                     type="button"
@@ -92,16 +105,24 @@ export function FunderTemplatePicker({ templates, selectedId, onSelect }: Funder
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-semibold text-brand-text-primary">
-                        {template.funder_name} <span className="font-normal text-secondary">{template.region}</span>
+                        {displayFunder ?? displayTitle}{" "}
+                        {displayFunder ? (
+                          <span className="font-normal text-secondary">{template.region}</span>
+                        ) : null}
                       </span>
-                      <span className="block text-sm text-secondary">{template.template_name}</span>
+                      {displayFunder ? (
+                        <span className="block text-sm text-secondary">{displayTitle}</span>
+                      ) : (
+                        <span className="block text-sm text-secondary">{template.region}</span>
+                      )}
                     </span>
                     <span className="shrink-0 rounded-full border border-brand-border px-2 py-0.5 text-xs font-semibold text-brand-primary">
                       Template ready
                     </span>
                   </button>
                 </li>
-              ))
+                );
+              })
             )}
           </ul>
         </div>
@@ -113,7 +134,10 @@ export function FunderTemplatePicker({ templates, selectedId, onSelect }: Funder
             ⓘ
           </span>
           <div>
-            <p className="font-semibold text-brand-text-primary">{selected.template_name}</p>
+            <p className="font-semibold text-brand-text-primary">{selectedTitle}</p>
+            {selectedFunder ? (
+              <p className="mt-1 text-sm text-secondary">{selectedFunder}</p>
+            ) : null}
             <p className="mt-1 text-sm text-secondary">
               Reporting frequency: {selected.reporting_frequency.replaceAll("_", " ")}
             </p>

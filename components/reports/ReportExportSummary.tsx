@@ -7,6 +7,10 @@ import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import type { ReportDetailResponse } from "@/lib/api/reports";
 import { exportReportDocx } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
+import {
+  resolveReportDisplayNames,
+  resolveReportExportFilenameStem,
+} from "@/lib/report-display-names";
 import { isReportDegraded } from "@/lib/report-detail-routing";
 
 import { ReportDegradedNotice } from "./ReportDegradedNotice";
@@ -67,9 +71,20 @@ function countNotProvidedItems(knowledgeBank: Record<string, unknown>): number {
   ).length;
 }
 
+function sanitizeDownloadFilename(filename: string): string {
+  return filename.replace(/[<>:"/\\|?*]/g, "-").trim();
+}
+
 export function ReportExportSummary({ report, reportId }: ReportExportSummaryProps) {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<ApiClientError | null>(null);
+
+  const { title, funder } = resolveReportDisplayNames(report);
+  const reportingPeriodLabel = formatReportingPeriod(
+    report.reporting_period_start,
+    report.reporting_period_end,
+  );
+  const reportTitle = resolveReportExportFilenameStem(report, reportingPeriodLabel);
 
   const sectionCount = report.content_json.generation_summary.total_sections;
   const sourceDocumentsUsed = countSourceDocuments(report.knowledge_bank_json);
@@ -80,7 +95,8 @@ export function ReportExportSummary({ report, reportId }: ReportExportSummaryPro
     setDownloading(true);
     setDownloadError(null);
     try {
-      await exportReportDocx(reportId);
+      const filename = sanitizeDownloadFilename(`${reportTitle}.docx`);
+      await exportReportDocx(reportId, filename);
     } catch (error) {
       setDownloadError(
         error instanceof ApiClientError
@@ -91,11 +107,6 @@ export function ReportExportSummary({ report, reportId }: ReportExportSummaryPro
       setDownloading(false);
     }
   };
-
-  const reportTitle = `${report.template_name} — ${formatReportingPeriod(
-    report.reporting_period_start,
-    report.reporting_period_end,
-  )}`;
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -126,12 +137,14 @@ export function ReportExportSummary({ report, reportId }: ReportExportSummaryPro
         <dl className="space-y-3 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-secondary">Report</dt>
-            <dd className="text-right font-semibold text-brand-text-primary">{report.template_name}</dd>
+            <dd className="text-right font-semibold text-brand-text-primary">{title}</dd>
           </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-secondary">Funder</dt>
-            <dd className="text-right font-semibold text-brand-text-primary">{report.funder_name}</dd>
-          </div>
+          {funder ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-secondary">Funder</dt>
+              <dd className="text-right font-semibold text-brand-text-primary">{funder}</dd>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-4">
             <dt className="text-secondary">Reporting period</dt>
             <dd className="text-right font-semibold text-brand-text-primary">

@@ -54,7 +54,9 @@ export function normalizeGapQuestions(
       itemKey: item.item_key,
       question,
       rationale,
-      sectionTag: `${funderName}${sectionLabel ? ` · ${sectionLabel}` : ""}`,
+      sectionTag: funderName.trim()
+        ? `${funderName.trim()}${sectionLabel ? ` · ${sectionLabel}` : ""}`
+        : sectionLabel || "General",
       severity: item.severity,
     };
   });

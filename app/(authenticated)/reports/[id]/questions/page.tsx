@@ -17,6 +17,7 @@ import {
   type GapCheckResponse,
 } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
+import { resolveReportDisplayFunder } from "@/lib/report-display-names";
 import {
   buildAnswerPatch,
   buildSkipPatch,
@@ -63,7 +64,7 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
       return null;
     }
 
-    setFunderName(report.funder_name);
+    setFunderName(resolveReportDisplayFunder(report.funder_name) ?? "");
     setGapCheck(check);
     setStates(initialStates(check));
     setError(null);
