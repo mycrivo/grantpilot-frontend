@@ -28,7 +28,7 @@ export function MeUpgradeRequired({
       data-required-plan={requiredPlan}
       data-feature={feature}
     >
-      <h3 className="text-xl font-semibold text-brand-text-primary">Donor reports require Impact</h3>
+      <h3 className="text-xl font-semibold text-brand-text-primary">M&E Reports require Impact</h3>
       <p className="text-secondary">{message}</p>
       <p className="text-sm text-secondary">
         Upgrade to {PLAN_DETAILS.IMPACT.label} ({PLAN_DETAILS.IMPACT.priceLabel}) for{" "}

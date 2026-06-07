@@ -4,11 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AssumptionsList } from "@/components/proposal/AssumptionsList";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import type { ProposalSectionGenerationStatus } from "@/lib/api/proposals";
+import {
+  proposalSectionStatusLabel,
+  proposalSectionStatusTone,
+} from "@/lib/proposal-status-labels";
 
 type ProposalSection = {
   submission_item_id: string;
   label: string;
-  generation_status: "GENERATED" | "FAILED" | "MANUAL_REQUIRED" | "NEEDS_USER_INPUT";
+  generation_status: ProposalSectionGenerationStatus;
   missing_inputs?: string[];
   archetype: string | null;
   content: {
@@ -29,19 +34,6 @@ type SectionContentProps = {
   regenerationErrorMessage?: string | null;
   onSaveAndRegenerate?: (submissionItemId: string, responseText: string) => Promise<void> | void;
 };
-
-function sectionStatusTone(status: ProposalSection["generation_status"]) {
-  if (status === "GENERATED") {
-    return "success";
-  }
-  if (status === "FAILED") {
-    return "error";
-  }
-  if (status === "NEEDS_USER_INPUT") {
-    return "warning";
-  }
-  return "neutral";
-}
 
 function humanizeMissingInput(field: string) {
   const cleaned = field.replace(/^ngo_profile\./, "").replaceAll("_", " ").trim();
@@ -74,7 +66,10 @@ export function SectionContent({
     <article id={`section-${section.submission_item_id}`} className="card space-y-4 scroll-mt-24">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4>{section.label}</h4>
-        <StatusBadge label={section.generation_status} tone={sectionStatusTone(section.generation_status)} />
+        <StatusBadge
+          label={proposalSectionStatusLabel(section.generation_status)}
+          tone={proposalSectionStatusTone(section.generation_status)}
+        />
       </div>
 
       {section.generation_status === "GENERATED" ? (

@@ -12,12 +12,13 @@ import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import {
   confirmGate1,
   getKnowledgeBank,
-  getReport,
   patchKnowledgeBank,
   type KnowledgeBankResponse,
 } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
-import { buildUserAddedFactPayload, shouldRenderGate1 } from "@/lib/knowledge-bank-view";
+import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
+import { buildUserAddedFactPayload } from "@/lib/knowledge-bank-view";
+import { useReportSubpathGuard } from "@/lib/report-subpath-guard";
 
 type FactsReportPageProps = {
   params: Promise<{ id: string }>;
@@ -26,6 +27,7 @@ type FactsReportPageProps = {
 export default function FactsReportPage({ params }: FactsReportPageProps) {
   const { id: reportId } = use(params);
   const router = useRouter();
+  const guard = useReportSubpathGuard(reportId, "facts");
   const [knowledgeBank, setKnowledgeBank] = useState<KnowledgeBankResponse | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<ApiClientError | null>(null);
@@ -34,21 +36,17 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const loadKnowledgeBank = useCallback(async () => {
-    const report = await getReport(reportId);
     const bank = await getKnowledgeBank(reportId);
-
-    if (!shouldRenderGate1(bank)) {
-      router.replace(`/reports/${encodeURIComponent(reportId)}`);
-      return null;
-    }
-
-    void report;
     setKnowledgeBank(bank);
     setError(null);
     return bank;
-  }, [reportId, router]);
+  }, [reportId]);
 
   useEffect(() => {
+    if (!guard.allowed) {
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -80,7 +78,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [loadKnowledgeBank]);
+  }, [guard.allowed, loadKnowledgeBank]);
 
   const refreshAfterPatch = async () => {
     const bank = await getKnowledgeBank(reportId);
@@ -185,12 +183,24 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     } catch (confirmErr) {
       setConfirmError(
         confirmErr instanceof ApiClientError
-          ? confirmErr.message
+          ? resolveFriendlyApiErrorMessage(confirmErr, "Failed to confirm facts. Please try again.")
           : "Failed to confirm facts. Please try again.",
       );
       setConfirming(false);
     }
   };
+
+  if (guard.notFound) {
+    return <ReportNotFound />;
+  }
+
+  if (guard.error) {
+    return <ErrorDisplay title="Project facts unavailable" error={guard.error} />;
+  }
+
+  if (guard.loading || !guard.allowed) {
+    return <LoadingSkeleton variant="page" lines={8} />;
+  }
 
   if (notFound) {
     return <ReportNotFound />;

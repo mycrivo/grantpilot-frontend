@@ -31,7 +31,8 @@ export function RecommendationBanner({ recommendation, rationale }: Recommendati
   return (
     <div className={`card border ${style.className}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-brand-card-bg px-3 py-1 text-sm font-semibold">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-card-bg px-3 py-1 text-sm font-semibold">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-90" aria-hidden="true" />
           {recommendationLabel(recommendation)}
         </span>
       </div>

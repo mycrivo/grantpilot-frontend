@@ -11,11 +11,12 @@ import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { confirmGate3, getReport, patchReportSection, type ReportDetailResponse } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
+import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
 import {
   buildReportSectionView,
   buildSourceCheckAlert,
-  shouldRenderGate3,
 } from "@/lib/report-section-view";
+import { useReportSubpathGuard } from "@/lib/report-subpath-guard";
 
 type ReviewReportPageProps = {
   params: Promise<{ id: string }>;
@@ -24,6 +25,7 @@ type ReviewReportPageProps = {
 export default function ReviewReportPage({ params }: ReviewReportPageProps) {
   const { id: reportId } = use(params);
   const router = useRouter();
+  const guard = useReportSubpathGuard(reportId, "review");
   const [report, setReport] = useState<ReportDetailResponse | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<ApiClientError | null>(null);
@@ -33,18 +35,16 @@ export default function ReviewReportPage({ params }: ReviewReportPageProps) {
 
   const loadReport = useCallback(async () => {
     const detail = await getReport(reportId);
-
-    if (!shouldRenderGate3(detail)) {
-      router.replace(`/reports/${encodeURIComponent(reportId)}`);
-      return null;
-    }
-
     setReport(detail);
     setError(null);
     return detail;
-  }, [reportId, router]);
+  }, [reportId]);
 
   useEffect(() => {
+    if (!guard.allowed) {
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -76,7 +76,7 @@ export default function ReviewReportPage({ params }: ReviewReportPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [loadReport]);
+  }, [guard.allowed, loadReport]);
 
   const sections = useMemo(() => {
     if (!report) {
@@ -113,7 +113,7 @@ export default function ReviewReportPage({ params }: ReviewReportPageProps) {
     } catch (confirmError) {
       setApproveError(
         confirmError instanceof ApiClientError
-          ? confirmError.message
+          ? resolveFriendlyApiErrorMessage(confirmError, "Failed to approve report. Please try again.")
           : "Failed to approve report. Please try again.",
       );
       setApproving(false);
@@ -124,6 +124,18 @@ export default function ReviewReportPage({ params }: ReviewReportPageProps) {
     const element = document.getElementById(`section-${sectionKey}`);
     element?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  if (guard.notFound) {
+    return <ReportNotFound />;
+  }
+
+  if (guard.error) {
+    return <ErrorDisplay title="Draft review unavailable" error={guard.error} />;
+  }
+
+  if (guard.loading || !guard.allowed) {
+    return <LoadingSkeleton variant="page" lines={10} />;
+  }
 
   if (notFound) {
     return <ReportNotFound />;

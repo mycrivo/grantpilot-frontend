@@ -3,6 +3,7 @@
  */
 
 import type { GapCheckMissingItem, GapCheckResponse, Gate2GapResponseInput } from "@/lib/api/reports";
+import { humanizeSectionKey } from "@/lib/section-key-labels";
 
 export type NormalizedGapQuestion = {
   itemKey: string;
@@ -38,9 +39,11 @@ export function normalizeGapQuestions(
   return gapCheck.missing_items.map((item) => {
     const raw = asRecord(item) ?? {};
     const sectionLabel =
-      typeof raw.section_label === "string"
+      typeof raw.section_label === "string" && raw.section_label.trim()
         ? raw.section_label
-        : item.section_key ?? "General";
+        : item.section_key
+          ? humanizeSectionKey(item.section_key)
+          : "General";
     const rationale =
       typeof raw.rationale === "string"
         ? raw.rationale

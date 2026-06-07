@@ -24,10 +24,10 @@ export function StatusBadge({ label, status, tone }: StatusBadgeProps) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-1 text-sm font-medium ${toneClasses[resolvedTone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-sm font-medium ${toneClasses[resolvedTone]}`}
     >
+      <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-90" aria-hidden="true" />
       {label}
     </span>
   );
 }
-

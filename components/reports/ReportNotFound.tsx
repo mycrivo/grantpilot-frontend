@@ -14,7 +14,7 @@ export function ReportNotFound() {
             <h1 className="text-lg font-semibold text-brand-text-primary">{REPORT_DETAIL_ERROR_LABEL.NOT_FOUND}</h1>
             <p className="mt-2 text-sm text-secondary">{REPORT_DETAIL_ERROR_LABEL.NOT_FOUND_BODY}</p>
             <Link href="/reports" className="btn-primary mt-4 inline-flex">
-              Back to Reports
+              Back to M&E Reports
             </Link>
           </div>
         </div>

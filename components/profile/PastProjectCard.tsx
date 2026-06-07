@@ -28,7 +28,7 @@ export function PastProjectCard({ index, project, onChange, onRemove, errors }: 
           className="text-left text-sm font-semibold text-brand-text-primary"
           onClick={() => setExpanded((prev) => !prev)}
         >
-          Project {index + 1}: {project.title?.trim() || "Untitled"}
+          Project {index + 1}: {project.title?.trim() || "Unnamed project"}
         </button>
         <button
           type="button"

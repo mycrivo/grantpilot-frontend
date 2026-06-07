@@ -17,15 +17,16 @@ import {
   type GapCheckResponse,
 } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
+import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
 import { resolveReportDisplayFunder } from "@/lib/report-display-names";
 import {
   buildAnswerPatch,
   buildSkipPatch,
   buildSubmitResponses,
   normalizeGapQuestions,
-  shouldRenderGate2,
   type GapQuestionState,
 } from "@/lib/gap-view";
+import { reportDispatchPath, useReportSubpathGuard } from "@/lib/report-subpath-guard";
 
 type QuestionsReportPageProps = {
   params: Promise<{ id: string }>;
@@ -46,10 +47,10 @@ function initialStates(gapCheck: GapCheckResponse): Record<string, GapQuestionSt
 export default function QuestionsReportPage({ params }: QuestionsReportPageProps) {
   const { id: reportId } = use(params);
   const router = useRouter();
+  const guard = useReportSubpathGuard(reportId, "questions");
   const [gapCheck, setGapCheck] = useState<GapCheckResponse | null>(null);
   const [funderName, setFunderName] = useState("");
   const [states, setStates] = useState<Record<string, GapQuestionState>>({});
-  const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<ApiClientError | null>(null);
   const [saving, setSaving] = useState(false);
   const [continuing, setContinuing] = useState(false);
@@ -59,19 +60,18 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
     const report = await getReport(reportId);
     const check = await getGapCheck(reportId);
 
-    if (!shouldRenderGate2(check)) {
-      router.replace(`/reports/${encodeURIComponent(reportId)}`);
-      return null;
-    }
-
     setFunderName(resolveReportDisplayFunder(report.funder_name) ?? "");
     setGapCheck(check);
     setStates(initialStates(check));
     setError(null);
     return check;
-  }, [reportId, router]);
+  }, [reportId]);
 
   useEffect(() => {
+    if (!guard.allowed) {
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -86,7 +86,7 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
         }
 
         if (loadError instanceof ApiClientError && loadError.status === 404) {
-          setNotFound(true);
+          router.replace(reportDispatchPath(reportId));
           return;
         }
 
@@ -103,7 +103,7 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
     return () => {
       cancelled = true;
     };
-  }, [loadGapCheck]);
+  }, [guard.allowed, loadGapCheck, reportId, router]);
 
   const questions = useMemo(() => {
     if (!gapCheck) {
@@ -187,15 +187,23 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
     } catch (submitError) {
       setContinueError(
         submitError instanceof ApiClientError
-          ? submitError.message
+          ? resolveFriendlyApiErrorMessage(submitError, "Failed to continue to draft. Please try again.")
           : "Failed to continue to draft. Please try again.",
       );
       setContinuing(false);
     }
   };
 
-  if (notFound) {
+  if (guard.notFound) {
     return <ReportNotFound />;
+  }
+
+  if (guard.error) {
+    return <ErrorDisplay title="Missing questions unavailable" error={guard.error} />;
+  }
+
+  if (guard.loading || !guard.allowed) {
+    return <LoadingSkeleton variant="page" lines={8} />;
   }
 
   if (error) {

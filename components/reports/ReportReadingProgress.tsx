@@ -50,7 +50,6 @@ export function ReportReadingProgress({ job }: ReportReadingProgressProps) {
         <div className="rounded-[12px] border border-brand-error/30 bg-brand-error/5 p-4 text-left">
           <h2 className="font-semibold text-brand-text-primary">{REPORT_DETAIL_ERROR_LABEL.READING_FAILED}</h2>
           <p className="mt-2 text-sm text-secondary">{REPORT_DETAIL_ERROR_LABEL.READING_FAILED_BODY}</p>
-          {job.error ? <p className="mt-2 text-sm text-secondary">{job.error}</p> : null}
         </div>
       ) : (
         <ul className="space-y-3 text-left">

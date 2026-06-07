@@ -169,9 +169,16 @@ export function resolveReportReadingWorkSteps(stage: ReportJobStage): ReportRead
 export const REPORT_DETAIL_ERROR_LABEL = {
   NOT_FOUND: "We could not find this report.",
   NOT_FOUND_BODY:
-    "It may have been removed. Go back to your Reports page to start or open another one.",
+    "It may have been removed. Go back to your M&E Reports page to start or open another one.",
   READING_FAILED: "We could not finish reading your documents.",
   READING_FAILED_BODY: "Please try again, or remove the problem file and read your documents again.",
+} as const;
+
+/** Reading step — resolved but no active job to poll (e.g. awaiting pipeline resume). */
+export const REPORT_READING_HOLDING_LABEL = {
+  TITLE: "Your report is being prepared",
+  BODY: "This can take a little while. You can leave and come back — we will email you when your review is ready.",
+  BACK_TO_REPORTS: "Return to M&E Reports",
 } as const;
 
 export const REPORT_DEGRADED_LABEL = {
@@ -238,8 +245,8 @@ export const GATE3_SECTION_STATUS_LABEL = {
 } as const;
 
 export const GATE3_CRITIC_SEVERITY_LABEL = {
-  BLOCK: "Block",
-  WARN: "Warning",
+  BLOCK: "Must fix before download",
+  WARN: "Please review",
 } as const;
 
 export const GATE3_LABEL = {
@@ -266,10 +273,10 @@ export const GATE3_LABEL = {
 
 /** Dashboard + Path C entry (B-04 cohesion). */
 export const DASHBOARD_REPORTS_LABEL = {
-  TITLE: "Donor reports",
+  TITLE: "M&E Reports",
   VIEW_ALL: "View all reports",
   PATH_C_LINK: "Won a grant elsewhere?",
-  EMPTY: "No donor reports yet.",
+  EMPTY: "No M&E reports yet.",
   START_CTA: "Start a report",
 } as const;
 

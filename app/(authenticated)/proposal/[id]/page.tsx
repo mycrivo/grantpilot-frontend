@@ -13,6 +13,11 @@ import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ApiClientError, apiRequest, type ApiErrorEnvelope } from "@/lib/api-client";
 import { regenerateProposal, updateKnowledgeBank } from "@/lib/api/proposals";
+import {
+  PROPOSAL_UNTITLED_OPPORTUNITY,
+  proposalStatusLabel,
+  proposalStatusTone,
+} from "@/lib/proposal-status-labels";
 
 type ProposalStatus = "DRAFT" | "DEGRADED";
 type SectionGenerationStatus = "GENERATED" | "FAILED" | "MANUAL_REQUIRED" | "NEEDS_USER_INPUT";
@@ -69,10 +74,6 @@ function parseSafeJson<T>(text: string): T | null {
   } catch {
     return null;
   }
-}
-
-function getProposalStatusTone(status: ProposalStatus) {
-  return status === "DRAFT" ? "success" : "warning";
 }
 
 function isProposalSection(value: unknown): value is ProposalSection {
@@ -413,9 +414,9 @@ export default function ProposalViewerPage() {
       <div className="card space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
-            <h3>{proposal.opportunity_title?.trim() ? proposal.opportunity_title : "Untitled opportunity"}</h3>
+            <h3>{proposal.opportunity_title?.trim() ? proposal.opportunity_title : PROPOSAL_UNTITLED_OPPORTUNITY}</h3>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge label={proposal.status} tone={getProposalStatusTone(proposal.status)} />
+              <StatusBadge label={proposalStatusLabel(proposal.status)} tone={proposalStatusTone(proposal.status)} />
               <p className="text-sm text-secondary">
                 Version {proposal.version} · {Math.min(proposal.regeneration_count, REGEN_MAX)} of {REGEN_MAX} regenerations used
               </p>

@@ -12,7 +12,7 @@ export function ReportsEmptyState() {
       <h2 className="text-xl font-bold text-brand-text-primary">No reports yet</h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-secondary">
         When you need to report back to a funder, GrantPilot helps you turn your documents, results, and notes into a
-        structured donor report.
+        structured M&E report.
       </p>
       <Link href="/reports/new" className="btn-primary mt-6 inline-flex items-center">
         Start your first report

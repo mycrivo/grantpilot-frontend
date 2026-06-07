@@ -15,6 +15,7 @@ import {
   GATE3_LABEL,
   GATE3_SECTION_STATUS_LABEL,
 } from "@/components/reports/report-status-labels";
+import { formatCriticReason } from "@/lib/critic-reason-labels";
 
 export type Gate3SectionDisplayStatus = "checked" | "edited" | "needs_review" | "not_provided";
 
@@ -140,7 +141,7 @@ export function normalizeReportSection(section: ReportSection): NormalizedReport
     fullText,
     isNotProvided: notProvided,
     unacceptedFlags,
-    primaryCriticIssue: primaryFlag?.reason ?? null,
+    primaryCriticIssue: primaryFlag ? formatCriticReason(primaryFlag.reason) : null,
     primaryCriticSeverity: primaryFlag?.severity ?? null,
     severityLabel: severityLabel(primaryFlag?.severity ?? null),
   };

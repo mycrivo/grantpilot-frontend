@@ -13,7 +13,7 @@ export const PLAN_DETAILS = {
     fitScansLimit: 10,
     proposalsLimit: 3,
     regenerationsPerProposal: 3,
-    meReportsLabel: "No M&E reports",
+    meReportsLabel: "No M&E Reports",
   },
   IMPACT: {
     label: "Impact Plan",
@@ -22,7 +22,7 @@ export const PLAN_DETAILS = {
     fitScansLimit: 10,
     proposalsLimit: 5,
     regenerationsPerProposal: 3,
-    donorReportsLabel: "2 donor reports / month",
+    donorReportsLabel: "2 M&E reports / month",
     prioritySupportLabel: "Priority support",
   },
 } as const;

@@ -86,7 +86,9 @@ export function ReportExportSummary({ report, reportId }: ReportExportSummaryPro
   );
   const reportTitle = resolveReportExportFilenameStem(report, reportingPeriodLabel);
 
-  const sectionCount = report.content_json.generation_summary.total_sections;
+  const generationSummary = report.content_json?.generation_summary;
+  const sectionCount = generationSummary?.total_sections ?? 0;
+  const failedSectionCount = generationSummary?.failed ?? 0;
   const sourceDocumentsUsed = countSourceDocuments(report.knowledge_bank_json);
   const notProvidedCount = countNotProvidedItems(report.knowledge_bank_json);
   const degraded = isReportDegraded(report);
@@ -110,9 +112,7 @@ export function ReportExportSummary({ report, reportId }: ReportExportSummaryPro
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      {degraded ? (
-        <ReportDegradedNotice failedSectionCount={report.content_json.generation_summary.failed} />
-      ) : null}
+      {degraded ? <ReportDegradedNotice failedSectionCount={failedSectionCount} /> : null}
 
       <div className="flex items-center gap-3">
         <span className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-brand-success/30 bg-brand-success/10 text-2xl text-brand-success">
@@ -188,7 +188,7 @@ export function ReportExportSummary({ report, reportId }: ReportExportSummaryPro
 
       <p className="flex items-start gap-2 text-sm text-secondary">
         <span aria-hidden="true">↩</span>
-        <span>You can return to this report from your Reports page.</span>
+        <span>You can return to this report from your M&E Reports page.</span>
       </p>
     </div>
   );

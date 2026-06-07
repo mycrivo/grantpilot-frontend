@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { uploadReportDocument, type UploadedDocumentResponse } from "@/lib/api/reports";
+import { documentClassificationLabel } from "@/lib/document-classification-labels";
 import { ApiClientError } from "@/lib/api-client";
 
 type LocalUploadRow = {
@@ -18,13 +19,6 @@ type ReportDocumentUploadProps = {
   reportId: string;
   onUploadedCountChange: (count: number) => void;
 };
-
-function classificationLabel(classification: string | null | undefined): string {
-  if (!classification) {
-    return "Pending classification";
-  }
-  return classification.replaceAll("_", " ");
-}
 
 export function ReportDocumentUpload({ reportId, onUploadedCountChange }: ReportDocumentUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +113,7 @@ export function ReportDocumentUpload({ reportId, onUploadedCountChange }: Report
                     ? "Uploading…"
                     : row.status === "failed"
                       ? "Upload failed"
-                      : classificationLabel(row.document?.classification)}
+                      : documentClassificationLabel(row.document?.classification)}
                 </span>
                 <button
                   type="button"

@@ -63,7 +63,7 @@ export default function ReportsPage() {
           error:
             error instanceof ApiClientError
               ? error
-              : new ApiClientError(500, "Failed to load donor reports."),
+              : new ApiClientError(500, "Failed to load M&E reports."),
         });
       }
     };
@@ -84,7 +84,7 @@ export default function ReportsPage() {
   }
 
   if (state.kind === "error") {
-    return <ErrorDisplay title="Reports unavailable" error={state.error} />;
+    return <ErrorDisplay title="M&E Reports unavailable" error={state.error} />;
   }
 
   const hasReports = state.reports.length > 0;
@@ -92,7 +92,7 @@ export default function ReportsPage() {
   return (
     <section className="space-y-6">
       <header>
-        <h1 className="text-[28px] font-bold leading-tight text-brand-text-primary">Your donor reports</h1>
+        <h1 className="text-[28px] font-bold leading-tight text-brand-text-primary">M&E Reports</h1>
         <p className="mt-2 max-w-2xl text-[15px] text-secondary">
           Start a new funder report or continue one you have already begun.
         </p>

@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { UpgradeNudge } from "@/components/shared/UpgradeNudge";
 import { UpgradeWall } from "@/components/shared/UpgradeWall";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
+import { recommendationLabel } from "@/lib/fit-scan-labels";
 import { type Plan } from "@/lib/plans";
 
 type Recommendation = "RECOMMENDED" | "APPLY_WITH_CAVEATS" | "NOT_RECOMMENDED";
@@ -331,7 +332,7 @@ export default function ProposalNewPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge
-            label={fitScan.overall_recommendation}
+            label={recommendationLabel(fitScan.overall_recommendation)}
             status={fitScan.overall_recommendation}
           />
           <span className="text-secondary">Risk flags: {fitScan.risk_flags?.length ?? 0}</span>

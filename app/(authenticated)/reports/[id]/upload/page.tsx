@@ -5,9 +5,12 @@ import { use, useState } from "react";
 
 import { ReportDocumentUpload } from "@/components/reports/ReportDocumentUpload";
 import { ReportsFunnelHeader } from "@/components/reports/ReportsFunnelHeader";
+import { ReportNotFound } from "@/components/reports/ReportNotFound";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
+import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import { enqueueReportJob } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
+import { useReportSubpathGuard } from "@/lib/report-subpath-guard";
 
 type UploadReportPageProps = {
   params: Promise<{ id: string }>;
@@ -16,6 +19,7 @@ type UploadReportPageProps = {
 export default function UploadReportPage({ params }: UploadReportPageProps) {
   const { id: reportId } = use(params);
   const router = useRouter();
+  const guard = useReportSubpathGuard(reportId, "upload");
   const [uploadedCount, setUploadedCount] = useState(0);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<ApiClientError | null>(null);
@@ -40,6 +44,18 @@ export default function UploadReportPage({ params }: UploadReportPageProps) {
       setStarting(false);
     }
   };
+
+  if (guard.notFound) {
+    return <ReportNotFound />;
+  }
+
+  if (guard.error) {
+    return <ErrorDisplay title="Report upload unavailable" error={guard.error} />;
+  }
+
+  if (guard.loading || !guard.allowed) {
+    return <LoadingSkeleton variant="page" lines={6} />;
+  }
 
   return (
     <section className="space-y-6">

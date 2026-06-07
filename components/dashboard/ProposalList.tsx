@@ -3,6 +3,11 @@
 import Link from "next/link";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import {
+  PROPOSAL_UNTITLED_OPPORTUNITY,
+  proposalStatusLabel,
+  proposalStatusTone,
+} from "@/lib/proposal-status-labels";
 
 type ProposalItem = {
   id: string;
@@ -59,10 +64,10 @@ export function ProposalList({ items }: ProposalListProps) {
             <li key={item.id} className="rounded-[8px] border border-brand-border p-3">
               <Link href={`/proposal/${encodeURIComponent(item.id)}`} className="space-y-2">
                 <p className="font-semibold text-brand-text-primary">
-                  {item.opportunity_title?.trim() ? item.opportunity_title : "Untitled opportunity"}
+                  {item.opportunity_title?.trim() ? item.opportunity_title : PROPOSAL_UNTITLED_OPPORTUNITY}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge label={item.status} tone={item.status === "DRAFT" ? "success" : "warning"} />
+                  <StatusBadge label={proposalStatusLabel(item.status)} tone={proposalStatusTone(item.status)} />
                   <span className="text-sm text-secondary">
                     {item.generation_summary.generated}/{item.generation_summary.total_items} sections generated
                   </span>

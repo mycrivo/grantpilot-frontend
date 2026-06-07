@@ -118,7 +118,7 @@ export function QuotaOverview({ payload }: QuotaOverviewProps) {
         <QuotaBar title="Fit Scans" quota={payload.entitlements.fit_scans} plan={payload.plan} />
         <QuotaBar title="Proposals" quota={payload.entitlements.proposals} plan={payload.plan} />
         {showReportsBar ? (
-          <QuotaBar title="Donor Reports" quota={payload.entitlements.reports} plan={payload.plan} />
+          <QuotaBar title="M&E Reports" quota={payload.entitlements.reports} plan={payload.plan} />
         ) : null}
       </div>
     </section>

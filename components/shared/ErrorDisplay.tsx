@@ -1,3 +1,5 @@
+import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
+
 type ApiErrorLike = {
   error_code?: string;
   message?: string;
@@ -24,19 +26,15 @@ type ErrorDisplayProps = {
 };
 
 function resolveMessage(error?: ApiErrorLike | null, fallbackMessage?: string, message?: string) {
-  if (error?.status === 429) {
-    return "You've hit a rate limit. Please wait a moment and try again.";
+  if (message) {
+    return message;
   }
 
-  if (typeof error?.status === "number" && error.status >= 500) {
-    return "We're experiencing a temporary issue. Please try again shortly.";
+  if (error) {
+    return resolveFriendlyApiErrorMessage(error, fallbackMessage);
   }
 
-  if (error?.message) {
-    return error.message;
-  }
-
-  return message ?? fallbackMessage ?? "Something went wrong. Please try again.";
+  return fallbackMessage ?? "Something went wrong. Please try again.";
 }
 
 export function ErrorDisplay({
@@ -79,4 +77,3 @@ export function ErrorDisplay({
     </div>
   );
 }
-

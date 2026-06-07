@@ -15,7 +15,7 @@ type NavItem = {
 
 const fitScansNavItem: NavItem = { href: "/dashboard#fit-scans", label: "Fit Scans" };
 const proposalsNavItem: NavItem = { href: "/dashboard#proposals", label: "Proposals" };
-const reportsNavItem: NavItem = { href: "/reports", label: "Reports" };
+const reportsNavItem: NavItem = { href: "/reports", label: "M&E Reports" };
 
 function buildNavItems(): NavItem[] {
   const items: NavItem[] = [
@@ -34,9 +34,9 @@ function buildNavItems(): NavItem[] {
 }
 
 function isNavItemActive(pathname: string, href: string): boolean {
+  // Hash hrefs are in-page jump links — never independently highlighted.
   if (href.includes("#")) {
-    const [path] = href.split("#");
-    return pathname === path;
+    return false;
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);

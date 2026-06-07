@@ -3,17 +3,26 @@
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 
+import { ReportReadingHolding } from "@/components/reports/ReportReadingHolding";
 import { ReportReadingProgress } from "@/components/reports/ReportReadingProgress";
 import { ReportsFunnelHeader } from "@/components/reports/ReportsFunnelHeader";
 import { ReportsJourneySteps } from "@/components/reports/ReportsJourneySteps";
 import { ReportNotFound } from "@/components/reports/ReportNotFound";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
-import { getReport, getReportJob, type ReportJobStatusResponse } from "@/lib/api/reports";
+import { type ReportJobStatusResponse } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
+import { REPORT_JOB_STATUS } from "@/lib/me-enums";
 import { resolveReportDetailSubpath, shouldPollReportJob } from "@/lib/report-detail-routing";
+import {
+  fetchReportRoutingContext,
+  reportDispatchPath,
+  useReportSubpathGuard,
+} from "@/lib/report-subpath-guard";
 
 const POLL_INTERVAL_MS = 3000;
+
+type ReadingView = "pending" | "active" | "failed" | "holding";
 
 type ReadingReportPageProps = {
   params: Promise<{ id: string }>;
@@ -22,37 +31,42 @@ type ReadingReportPageProps = {
 export default function ReadingReportPage({ params }: ReadingReportPageProps) {
   const { id: reportId } = use(params);
   const router = useRouter();
-  const [job, setJob] = useState<ReportJobStatusResponse | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const guard = useReportSubpathGuard(reportId, "reading");
+  const [readingView, setReadingView] = useState<ReadingView>("pending");
+  const [displayJob, setDisplayJob] = useState<ReportJobStatusResponse | null>(null);
   const [error, setError] = useState<ApiClientError | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const report = await getReport(reportId);
-      let nextJob: ReportJobStatusResponse | null = null;
+      const context = await fetchReportRoutingContext(reportId);
+      const resolved = resolveReportDetailSubpath(context.report, context.job);
 
-      try {
-        nextJob = await getReportJob(reportId);
-      } catch (jobError) {
-        if (jobError instanceof ApiClientError && jobError.status === 404) {
-          nextJob = null;
-        } else {
-          throw jobError;
-        }
-      }
-
-      if (!shouldPollReportJob(nextJob, report)) {
-        const subpath = resolveReportDetailSubpath(report, nextJob);
-        router.replace(`/reports/${encodeURIComponent(reportId)}/${subpath}`);
+      if (resolved !== "reading") {
+        router.replace(reportDispatchPath(reportId));
         return false;
       }
 
-      setJob(nextJob);
+      if (shouldPollReportJob(context.job, context.report)) {
+        setDisplayJob(context.job);
+        setReadingView("active");
+        setError(null);
+        return true;
+      }
+
+      if (context.job?.status === REPORT_JOB_STATUS.FAILED) {
+        setDisplayJob(context.job);
+        setReadingView("failed");
+        setError(null);
+        return false;
+      }
+
+      setDisplayJob(null);
+      setReadingView("holding");
       setError(null);
-      return true;
+      return false;
     } catch (loadError) {
       if (loadError instanceof ApiClientError && loadError.status === 404) {
-        setNotFound(true);
+        router.replace(reportDispatchPath(reportId));
         return false;
       }
 
@@ -66,6 +80,10 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
   }, [reportId, router]);
 
   useEffect(() => {
+    if (!guard.allowed) {
+      return;
+    }
+
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -88,17 +106,21 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
         clearInterval(intervalId);
       }
     };
-  }, [refresh]);
+  }, [guard.allowed, refresh]);
 
-  if (notFound) {
+  if (guard.notFound) {
     return <ReportNotFound />;
+  }
+
+  if (guard.error) {
+    return <ErrorDisplay title="Progress unavailable" error={guard.error} />;
   }
 
   if (error) {
     return <ErrorDisplay title="Progress unavailable" error={error} />;
   }
 
-  if (!job) {
+  if (guard.loading || !guard.allowed || readingView === "pending") {
     return <LoadingSkeleton variant="page" lines={6} />;
   }
 
@@ -106,7 +128,13 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
     <section className="space-y-6">
       <ReportsFunnelHeader />
       <ReportsJourneySteps current="read" />
-      <ReportReadingProgress job={job} />
+      {readingView === "holding" ? (
+        <ReportReadingHolding />
+      ) : displayJob ? (
+        <ReportReadingProgress job={displayJob} />
+      ) : (
+        <LoadingSkeleton variant="page" lines={6} />
+      )}
     </section>
   );
 }

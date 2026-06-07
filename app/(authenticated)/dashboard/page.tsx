@@ -134,7 +134,7 @@ export default function DashboardPage() {
               setReportsError(
                 error instanceof ApiClientError
                   ? error
-                  : new ApiClientError(500, "Failed to load recent donor reports."),
+                  : new ApiClientError(500, "Failed to load recent M&E reports."),
               );
             })
             .finally(() => {
@@ -299,7 +299,7 @@ export default function DashboardPage() {
 
       {showReportsGlance ? (
         reportsError ? (
-          <ErrorDisplay title="Recent donor reports unavailable" error={reportsError} />
+          <ErrorDisplay title="M&E Reports unavailable" error={reportsError} />
         ) : reportsLoading ? (
           <LoadingSkeleton variant="card" lines={4} />
         ) : (

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { GATE3_LABEL } from "@/components/reports/report-status-labels";
+import { CRITIC_REASON_PREFIX } from "@/lib/critic-reason-labels";
 import type { NormalizedReportSection } from "@/lib/report-section-view";
 
 type Gate3SectionCardProps = {
@@ -60,10 +61,15 @@ export function Gate3SectionCard({ section, saving, onSave }: Gate3SectionCardPr
       </div>
 
       {section.primaryCriticIssue ? (
-        <p className="mt-3 flex items-start gap-2 text-sm text-brand-warning">
-          <span aria-hidden="true">!</span>
-          <span>{section.primaryCriticIssue}</span>
-        </p>
+        <div className="mt-3 rounded-[8px] border border-brand-warning/30 bg-brand-warning/5 px-3 py-2 text-sm">
+          {section.severityLabel ? (
+            <p className="font-semibold text-brand-warning">{section.severityLabel}</p>
+          ) : null}
+          <p className={section.severityLabel ? "mt-1 text-secondary" : "text-secondary"}>
+            <span className="font-medium text-brand-text-primary">{CRITIC_REASON_PREFIX}</span>
+            {section.primaryCriticIssue}
+          </p>
+        </div>
       ) : null}
 
       {!editing ? <p className="mt-3 text-sm text-secondary">{section.previewText}</p> : null}
