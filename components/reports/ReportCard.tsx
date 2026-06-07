@@ -3,6 +3,7 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type { ReportListItem } from "@/lib/api/reports";
 import { resolveReportDisplayNames } from "@/lib/report-display-names";
+import { reportUploadPath } from "@/lib/api/reports";
 
 import { resolveReportListStatusChip } from "./report-status-labels";
 
@@ -50,8 +51,11 @@ function formatLastUpdated(value: string): string {
 }
 
 export function ReportCard({ report }: ReportCardProps) {
-  const chip = resolveReportListStatusChip(report.status, report.current_gate);
-  const reportHref = `/reports/${encodeURIComponent(report.id)}`;
+  const chip = resolveReportListStatusChip(report.status, report.current_gate, {
+    latestJobStatus: report.latest_job_status,
+  });
+  const reportHref =
+    chip.cta === "Start over" ? reportUploadPath(report.id) : `/reports/${encodeURIComponent(report.id)}`;
   const { title, funder } = resolveReportDisplayNames(report);
 
   return (

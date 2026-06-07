@@ -131,7 +131,7 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
       {readingView === "holding" ? (
         <ReportReadingHolding />
       ) : displayJob ? (
-        <ReportReadingProgress job={displayJob} />
+        <ReportReadingProgress job={displayJob} reportId={reportId} />
       ) : (
         <LoadingSkeleton variant="page" lines={6} />
       )}

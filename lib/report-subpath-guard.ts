@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { getReport, getReportJob, type ReportDetailResponse, type ReportJobStatusResponse } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
+import { DONOR_REPORT_STATUS, REPORT_JOB_STATUS } from "@/lib/me-enums";
 import { resolveReportDetailSubpath, type ReportDetailSubpath } from "@/lib/report-detail-routing";
 
 export async function fetchReportRoutingContext(reportId: string): Promise<{
@@ -70,7 +71,12 @@ export function useReportSubpathGuard(
         }
 
         const resolved = resolveReportDetailSubpath(context.report, context.job);
-        if (resolved !== expectedSubpath) {
+        const uploadAllowedAfterFailure =
+          expectedSubpath === "upload" &&
+          context.job?.status === REPORT_JOB_STATUS.FAILED &&
+          context.report.status === DONOR_REPORT_STATUS.DRAFT;
+
+        if (resolved !== expectedSubpath && !uploadAllowedAfterFailure) {
           router.replace(reportDispatchPath(reportId));
           return;
         }

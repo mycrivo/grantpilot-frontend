@@ -276,6 +276,8 @@ export type ReportListItem = {
   reporting_period_start: string;
   reporting_period_end: string;
   current_gate: CurrentGate;
+  latest_job_status: ReportJobStatus | null;
+  latest_job_stage: ReportJobStage | null;
   created_at: string;
   updated_at: string;
 };
@@ -300,6 +302,14 @@ export type ExportReportRequest = {
 
 function reportPath(reportId: string): string {
   return `/api/reports/${encodeURIComponent(reportId)}`;
+}
+
+export function reportUploadPath(reportId: string): string {
+  return `/reports/${encodeURIComponent(reportId)}/upload`;
+}
+
+export function reportReadingPath(reportId: string): string {
+  return `/reports/${encodeURIComponent(reportId)}/reading`;
 }
 
 function buildQuery(params: Record<string, string | number | undefined>): string {

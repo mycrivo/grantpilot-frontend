@@ -7,15 +7,18 @@ import {
   CURRENT_GATE,
   DONOR_REPORT_STATUS,
   REPORT_JOB_STAGE,
+  REPORT_JOB_STATUS,
   type CurrentGate,
   type DonorReportStatus,
   type ReportJobStage,
+  type ReportJobStatus,
 } from "@/lib/me-enums";
 
 export const REPORT_LIST_STATUS_LABEL = {
   READING_DOCUMENTS: "Reading documents",
   NEEDS_YOUR_REVIEW: "Needs your review",
   DRAFT_READY: "Draft ready",
+  GENERATION_FAILED: "Generation failed",
   READY_TO_DOWNLOAD: "Ready to download",
   DOWNLOADED: "Downloaded",
 } as const;
@@ -25,9 +28,16 @@ export type ReportListStatusLabelKey = keyof typeof REPORT_LIST_STATUS_LABEL;
 export type ReportListStatusChip = {
   key: ReportListStatusLabelKey;
   label: (typeof REPORT_LIST_STATUS_LABEL)[ReportListStatusLabelKey];
-  tone: "success" | "warning" | "neutral";
-  cta: "Continue" | "View report";
+  tone: "success" | "warning" | "error" | "neutral";
+  cta: "Continue" | "View report" | "Start over";
 };
+
+function isActiveJobStatus(status: ReportJobStatus | null | undefined): boolean {
+  return (
+    status === REPORT_JOB_STATUS.QUEUED ||
+    status === REPORT_JOB_STATUS.RUNNING
+  );
+}
 
 function isReviewGate(currentGate: CurrentGate): boolean {
   return currentGate === CURRENT_GATE.GATE1 || currentGate === CURRENT_GATE.GATE3;
@@ -37,8 +47,29 @@ function isReviewGate(currentGate: CurrentGate): boolean {
 export function resolveReportListStatusChip(
   status: DonorReportStatus,
   currentGate: CurrentGate,
-  options?: { exportDownloaded?: boolean },
+  options?: {
+    exportDownloaded?: boolean;
+    latestJobStatus?: ReportJobStatus | null;
+  },
 ): ReportListStatusChip {
+  if (options?.latestJobStatus === REPORT_JOB_STATUS.FAILED) {
+    return {
+      key: "GENERATION_FAILED",
+      label: REPORT_LIST_STATUS_LABEL.GENERATION_FAILED,
+      tone: "error",
+      cta: "Start over",
+    };
+  }
+
+  if (isActiveJobStatus(options?.latestJobStatus)) {
+    return {
+      key: "READING_DOCUMENTS",
+      label: REPORT_LIST_STATUS_LABEL.READING_DOCUMENTS,
+      tone: "neutral",
+      cta: "Continue",
+    };
+  }
+
   if (status === DONOR_REPORT_STATUS.EXTRACTING) {
     return {
       key: "READING_DOCUMENTS",
@@ -129,6 +160,11 @@ export function resolveReportJobProgressHeadline(stage: ReportJobStage): string 
   }
   return REPORT_JOB_PROGRESS_HEADLINE.READING_DOCUMENTS;
 }
+
+export const REPORT_READING_FAILED_LABEL = {
+  START_OVER: "Start over",
+  BACK_TO_REPORTS: "Back to M&E Reports",
+} as const;
 
 export function resolveReportReadingWorkSteps(stage: ReportJobStage): ReportReadingWorkStep[] {
   if (stage === REPORT_JOB_STAGE.SYNTHESISE || stage === REPORT_JOB_STAGE.CRITIQUE) {

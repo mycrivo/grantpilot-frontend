@@ -24,7 +24,9 @@ export function ReportsDashboardGlance({ reports }: ReportsDashboardGlanceProps)
       ) : (
         <ul className="space-y-3">
           {reports.map((report) => {
-            const chip = resolveReportListStatusChip(report.status, report.current_gate);
+            const chip = resolveReportListStatusChip(report.status, report.current_gate, {
+              latestJobStatus: report.latest_job_status,
+            });
             const { title, funder } = resolveReportDisplayNames(report);
             return (
               <li key={report.id} className="rounded-[8px] border border-brand-border p-3">
