@@ -170,6 +170,11 @@ export default function NewReportPage() {
         <p className="mt-2 text-[15px] text-secondary">
           Choose the funder, grant, and reporting period so GrantPilot can structure the report correctly.
         </p>
+        <p className="mt-3 text-sm font-medium text-brand-text-primary">
+          {pageState.reportsRemaining === 1
+            ? "1 report remaining this billing cycle."
+            : `${pageState.reportsRemaining} reports remaining this billing cycle.`}
+        </p>
       </header>
 
       <FunderTemplatePicker

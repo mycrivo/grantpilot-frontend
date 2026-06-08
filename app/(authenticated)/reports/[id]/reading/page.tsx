@@ -10,9 +10,9 @@ import { ReportsJourneySteps } from "@/components/reports/ReportsJourneySteps";
 import { ReportNotFound } from "@/components/reports/ReportNotFound";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
-import { type ReportJobStatusResponse } from "@/lib/api/reports";
+import { type ReportJobStatusResponse, resumeCritique } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
-import { REPORT_JOB_STATUS } from "@/lib/me-enums";
+import { REPORT_JOB_STAGE, REPORT_JOB_STATUS } from "@/lib/me-enums";
 import { resolveReportDetailSubpath, shouldPollReportJob } from "@/lib/report-detail-routing";
 import {
   fetchReportRoutingContext,
@@ -39,6 +39,26 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
   const refresh = useCallback(async () => {
     try {
       const context = await fetchReportRoutingContext(reportId);
+
+      if (
+        context.job?.stage === REPORT_JOB_STAGE.CRITIQUE &&
+        context.job.status === REPORT_JOB_STATUS.AWAITING_HUMAN
+      ) {
+        try {
+          await resumeCritique(reportId);
+        } catch (resumeError) {
+          if (
+            !(resumeError instanceof ApiClientError) ||
+            resumeError.errorCode !== "CRITIQUE_ALREADY_COMPLETED"
+          ) {
+            throw resumeError;
+          }
+        }
+        const refreshed = await fetchReportRoutingContext(reportId);
+        context.report = refreshed.report;
+        context.job = refreshed.job;
+      }
+
       const resolved = resolveReportDetailSubpath(context.report, context.job);
 
       if (resolved !== "reading") {

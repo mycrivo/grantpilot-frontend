@@ -308,6 +308,13 @@ export type PatchReportSectionRequest = {
   accept_section?: boolean;
 };
 
+export type ResumeCritiqueResponse = {
+  job_id: string;
+  donor_report_id: string;
+  stage: ReportJobStage;
+  status: ReportJobStatus;
+};
+
 // ——— §12.13 export ———
 
 export type ExportReportRequest = {
@@ -440,6 +447,13 @@ export function confirmGate3(reportId: string) {
   });
 }
 
+/** §12.8b POST /api/reports/{id}/job/resume-critique */
+export function resumeCritique(reportId: string) {
+  return apiRequest<ResumeCritiqueResponse>(`${reportPath(reportId)}/job/resume-critique`, {
+    method: "POST",
+  });
+}
+
 /** §12.11 PATCH /api/reports/{id}/sections/{key} */
 export function patchReportSection(reportId: string, sectionKey: string, body: PatchReportSectionRequest) {
   return apiRequest<ReportDetailResponse>(
@@ -449,6 +463,13 @@ export function patchReportSection(reportId: string, sectionKey: string, body: P
       body: JSON.stringify(body),
     },
   );
+}
+
+/** §12.11b POST /api/reports/{id}/sections/accept-all */
+export function acceptAllSections(reportId: string) {
+  return apiRequest<ReportDetailResponse>(`${reportPath(reportId)}/sections/accept-all`, {
+    method: "POST",
+  });
 }
 
 /** §12.13 GET /api/reports/{id}/export — returns DOCX blob. */

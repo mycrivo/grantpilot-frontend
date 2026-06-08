@@ -9,7 +9,7 @@ import { ReportsFunnelHeader } from "@/components/reports/ReportsFunnelHeader";
 import { ReportsJourneySteps } from "@/components/reports/ReportsJourneySteps";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
-import { confirmGate3, getReport, patchReportSection, type ReportDetailResponse } from "@/lib/api/reports";
+import { acceptAllSections, confirmGate3, getReport, patchReportSection, type ReportDetailResponse } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
 import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
 import {
@@ -108,6 +108,8 @@ export default function ReviewReportPage({ params }: ReviewReportPageProps) {
     setApproving(true);
     setApproveError(null);
     try {
+      const updated = await acceptAllSections(reportId);
+      setReport(updated);
       await confirmGate3(reportId);
       router.replace(`/reports/${encodeURIComponent(reportId)}`);
     } catch (confirmError) {
