@@ -59,7 +59,7 @@ export function resolveReportListStatusChip(
       key: "GENERATION_FAILED",
       label: REPORT_LIST_STATUS_LABEL.GENERATION_FAILED,
       tone: "error",
-      cta: "Start over",
+      cta: "View details",
     };
   }
 
@@ -220,6 +220,9 @@ export const REPORT_DETAIL_ERROR_LABEL = {
     "Please try again. If the problem continues, go back and check the facts and answers you confirmed.",
   EXPORT_FAILED: "We could not prepare your download.",
   EXPORT_FAILED_BODY: "Please try again. Your draft sections are saved — you can return to review and retry.",
+  GAP_FAILED: "We could not finish checking your report against the funder template.",
+  GAP_FAILED_BODY:
+    "This happened after your facts were confirmed. Please try again — your confirmed facts are saved. If it keeps failing, contact support.",
 } as const;
 
 export type JobFailureCopy = {
@@ -239,6 +242,22 @@ export function resolveJobFailureCopy(stage: ReportJobStage): JobFailureCopy {
     return {
       headline: REPORT_DETAIL_ERROR_LABEL.EXPORT_FAILED,
       body: REPORT_DETAIL_ERROR_LABEL.EXPORT_FAILED_BODY,
+    };
+  }
+  if (stage === REPORT_JOB_STAGE.GAP) {
+    return {
+      headline: REPORT_DETAIL_ERROR_LABEL.GAP_FAILED,
+      body: REPORT_DETAIL_ERROR_LABEL.GAP_FAILED_BODY,
+    };
+  }
+  if (
+    stage === REPORT_JOB_STAGE.RECONCILE ||
+    stage === REPORT_JOB_STAGE.EXTRACT ||
+    stage === REPORT_JOB_STAGE.CLASSIFY
+  ) {
+    return {
+      headline: REPORT_DETAIL_ERROR_LABEL.READING_FAILED,
+      body: REPORT_DETAIL_ERROR_LABEL.READING_FAILED_BODY,
     };
   }
   return {

@@ -25,6 +25,12 @@ describe("resolveJobFailureCopy", () => {
   it("uses export copy for export stage", () => {
     expect(resolveJobFailureCopy(REPORT_JOB_STAGE.EXPORT).headline).toContain("download");
   });
+
+  it("uses gap copy for gap stage", () => {
+    const copy = resolveJobFailureCopy(REPORT_JOB_STAGE.GAP);
+    expect(copy.headline).toContain("funder template");
+    expect(copy.body).toContain("confirmed facts");
+  });
 });
 
 describe("resolveReportListStatusChip", () => {
@@ -50,5 +56,6 @@ describe("resolveReportListStatusChip", () => {
       latestJobStage: REPORT_JOB_STAGE.EXPORT,
     });
     expect(chip.label).toBe("Generation failed");
+    expect(chip.cta).toBe("View details");
   });
 });

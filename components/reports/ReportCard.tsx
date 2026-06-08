@@ -3,7 +3,6 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type { ReportListItem } from "@/lib/api/reports";
 import { resolveReportDisplayNames } from "@/lib/report-display-names";
-import { reportUploadPath } from "@/lib/api/reports";
 
 import { resolveReportListStatusChip } from "./report-status-labels";
 
@@ -55,9 +54,31 @@ export function ReportCard({ report }: ReportCardProps) {
     latestJobStatus: report.latest_job_status,
     latestJobStage: report.latest_job_stage,
   });
-  const reportHref =
-    chip.cta === "Start over" ? reportUploadPath(report.id) : `/reports/${encodeURIComponent(report.id)}`;
+  const reportHref = `/reports/${encodeURIComponent(report.id)}`;
   const { title, funder } = resolveReportDisplayNames(report);
+
+  // #region agent log
+  if (chip.key === "GENERATION_FAILED") {
+    fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
+      body: JSON.stringify({
+        sessionId: "1949da",
+        hypothesisId: "H1",
+        location: "ReportCard.tsx:render",
+        message: "failed report card CTA target",
+        data: {
+          reportId: report.id,
+          reportHref,
+          jobStage: report.latest_job_stage,
+          jobStatus: report.latest_job_status,
+          cta: chip.cta,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }
+  // #endregion
 
   return (
     <article className="flex flex-col gap-4 rounded-[12px] border border-brand-border bg-brand-card-bg p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between">
@@ -83,6 +104,9 @@ export function ReportCard({ report }: ReportCardProps) {
       </div>
       <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-col sm:items-end">
         <StatusBadge label={chip.label} tone={chip.tone} />
+        {chip.key === "GENERATION_FAILED" ? (
+          <p className="text-xs text-secondary">Tap below to see what happened and retry.</p>
+        ) : null}
         <Link
           href={reportHref}
           className="inline-flex min-h-10 items-center rounded-[8px] border border-brand-primary bg-transparent px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-primary/5"

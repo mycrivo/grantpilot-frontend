@@ -43,6 +43,29 @@ export function ReportReadingProgress({ job, reportId }: ReportReadingProgressPr
   const headline = hasError ? failureCopy.headline : resolveReportJobProgressHeadline(job.stage);
   const workSteps = resolveReportReadingWorkSteps(job.stage);
 
+  // #region agent log
+  if (hasError) {
+    fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
+      body: JSON.stringify({
+        sessionId: "1949da",
+        hypothesisId: "H3-H6",
+        location: "ReportReadingProgress.tsx:render",
+        message: "failure UI copy shown",
+        data: {
+          reportId,
+          jobStage: job.stage,
+          headline,
+          body: failureCopy.body,
+          hasErrorField: Boolean(job.error),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }
+  // #endregion
+
   return (
     <div className="mx-auto max-w-xl space-y-6 text-center">
       <header>
