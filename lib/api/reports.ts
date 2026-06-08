@@ -76,6 +76,10 @@ export type UploadedDocumentResponse = {
   job_id?: string;
 };
 
+export type UploadedDocumentListResponse = {
+  documents: UploadedDocumentResponse[];
+};
+
 // ——— §12.4 / §12.5 knowledge bank ———
 
 export type KnowledgeBankResponse = {
@@ -351,6 +355,18 @@ export function uploadReportDocument(reportId: string, file: File) {
   const formData = new FormData();
   formData.append("file", file);
   return apiUpload<UploadedDocumentResponse>(`${reportPath(reportId)}/documents`, formData);
+}
+
+/** §12.3.1 GET /api/reports/{id}/documents */
+export function listReportDocuments(reportId: string) {
+  return apiRequest<UploadedDocumentListResponse>(`${reportPath(reportId)}/documents`, { method: "GET" });
+}
+
+/** §12.3.2 DELETE /api/reports/{id}/documents/{documentId} */
+export function deleteReportDocument(reportId: string, documentId: string) {
+  return apiRequest<void>(`${reportPath(reportId)}/documents/${encodeURIComponent(documentId)}`, {
+    method: "DELETE",
+  });
 }
 
 /** §12.12 GET /api/reports/{id}/job */

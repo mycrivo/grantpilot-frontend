@@ -1,16 +1,22 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
-import { uploadReportDocument, type UploadedDocumentResponse } from "@/lib/api/reports";
+import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
+import {
+  deleteReportDocument,
+  listReportDocuments,
+  uploadReportDocument,
+  type UploadedDocumentResponse,
+} from "@/lib/api/reports";
 import { documentClassificationLabel } from "@/lib/document-classification-labels";
 import { ApiClientError } from "@/lib/api-client";
 
 type LocalUploadRow = {
   key: string;
   filename: string;
-  status: "uploading" | "uploaded" | "failed" | "removed";
+  status: "uploading" | "uploaded" | "failed" | "removed" | "removing";
   document?: UploadedDocumentResponse;
   error?: ApiClientError;
 };
@@ -20,15 +26,67 @@ type ReportDocumentUploadProps = {
   onUploadedCountChange: (count: number) => void;
 };
 
+function rowsFromDocuments(documents: UploadedDocumentResponse[]): LocalUploadRow[] {
+  return documents.map((document) => ({
+    key: document.id,
+    filename: document.original_filename,
+    status: "uploaded" as const,
+    document,
+  }));
+}
+
 export function ReportDocumentUpload({ reportId, onUploadedCountChange }: ReportDocumentUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<LocalUploadRow[]>([]);
+  const [loadingExisting, setLoadingExisting] = useState(true);
+  const [loadError, setLoadError] = useState<ApiClientError | null>(null);
   const [actionError, setActionError] = useState<ApiClientError | null>(null);
 
-  const syncUploadedCount = (nextRows: LocalUploadRow[]) => {
-    const count = nextRows.filter((row) => row.status === "uploaded").length;
-    onUploadedCountChange(count);
-  };
+  const syncUploadedCount = useCallback(
+    (nextRows: LocalUploadRow[]) => {
+      const count = nextRows.filter((row) => row.status === "uploaded").length;
+      onUploadedCountChange(count);
+    },
+    [onUploadedCountChange],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setLoadingExisting(true);
+    setLoadError(null);
+
+    const run = async () => {
+      try {
+        const response = await listReportDocuments(reportId);
+        if (cancelled) {
+          return;
+        }
+        const nextRows = rowsFromDocuments(response.documents);
+        setRows(nextRows);
+        syncUploadedCount(nextRows);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setLoadError(
+          error instanceof ApiClientError
+            ? error
+            : new ApiClientError(500, "Failed to load your documents. Please try again."),
+        );
+      } finally {
+        if (!cancelled) {
+          setLoadingExisting(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reportId, syncUploadedCount]);
 
   const uploadFile = async (file: File) => {
     const key = `${file.name}-${file.size}-${file.lastModified}`;
@@ -43,7 +101,7 @@ export function ReportDocumentUpload({ reportId, onUploadedCountChange }: Report
       const document = await uploadReportDocument(reportId, file);
       setRows((current) => {
         const next = current.map((row) =>
-          row.key === key ? { ...row, status: "uploaded" as const, document, error: undefined } : row,
+          row.key === key ? { ...row, key: document.id, status: "uploaded" as const, document, error: undefined } : row,
         );
         syncUploadedCount(next);
         return next;
@@ -69,7 +127,63 @@ export function ReportDocumentUpload({ reportId, onUploadedCountChange }: Report
     void Promise.all(Array.from(fileList).map((file) => uploadFile(file)));
   };
 
+  const removeRow = async (row: LocalUploadRow) => {
+    if (row.status === "removing" || row.status === "uploading") {
+      return;
+    }
+
+    if (!row.document?.id) {
+      setRows((current) => {
+        const next = current.map((item) =>
+          item.key === row.key ? { ...item, status: "removed" as const } : item,
+        );
+        syncUploadedCount(next);
+        return next;
+      });
+      return;
+    }
+
+    setRows((current) => {
+      const next = current.map((item) =>
+        item.key === row.key ? { ...item, status: "removing" as const, error: undefined } : item,
+      );
+      return next;
+    });
+    setActionError(null);
+
+    try {
+      await deleteReportDocument(reportId, row.document.id);
+      setRows((current) => {
+        const next = current.map((item) =>
+          item.key === row.key ? { ...item, status: "removed" as const } : item,
+        );
+        syncUploadedCount(next);
+        return next;
+      });
+    } catch (error) {
+      const apiError =
+        error instanceof ApiClientError
+          ? error
+          : new ApiClientError(500, "The file could not be removed. Please try again.");
+      setRows((current) => {
+        const next = current.map((item) =>
+          item.key === row.key ? { ...item, status: "uploaded" as const, error: apiError } : item,
+        );
+        return next;
+      });
+      setActionError(apiError);
+    }
+  };
+
   const visibleRows = rows.filter((row) => row.status !== "removed");
+
+  if (loadingExisting) {
+    return <LoadingSkeleton variant="card" lines={3} />;
+  }
+
+  if (loadError) {
+    return <ErrorDisplay title="Could not load your documents" error={loadError} />;
+  }
 
   return (
     <div className="space-y-4">
@@ -111,22 +225,19 @@ export function ReportDocumentUpload({ reportId, onUploadedCountChange }: Report
                 <span className="text-sm capitalize text-secondary">
                   {row.status === "uploading"
                     ? "Uploading…"
-                    : row.status === "failed"
-                      ? "Upload failed"
-                      : documentClassificationLabel(row.document?.classification)}
+                    : row.status === "removing"
+                      ? "Removing…"
+                      : row.status === "failed"
+                        ? "Upload failed"
+                        : documentClassificationLabel(row.document?.classification)}
                 </span>
                 <button
                   type="button"
-                  className="rounded-[6px] px-2 py-1 text-lg leading-none text-secondary hover:bg-brand-divider hover:text-brand-text-primary"
+                  className="rounded-[6px] px-2 py-1 text-lg leading-none text-secondary hover:bg-brand-divider hover:text-brand-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label={`Remove ${row.filename}`}
+                  disabled={row.status === "uploading" || row.status === "removing"}
                   onClick={() => {
-                    setRows((current) => {
-                      const next = current.map((item) =>
-                        item.key === row.key ? { ...item, status: "removed" as const } : item,
-                      );
-                      syncUploadedCount(next);
-                      return next;
-                    });
+                    void removeRow(row);
                   }}
                 >
                   ×

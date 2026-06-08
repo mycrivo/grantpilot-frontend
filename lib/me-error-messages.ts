@@ -31,6 +31,8 @@ export const ME_ERROR_MESSAGE: Record<string, string> = {
   RATE_LIMITED: "You've hit a rate limit. Please wait a moment and try again.",
   ACTIVE_JOB_EXISTS: "This report is already being processed. Please wait for it to finish.",
   JOB_ALREADY_ACTIVE: "This report is already being processed. Please wait for it to finish.",
+  REPORT_HAS_COMPLETED_RUN: "Documents cannot be removed after a report run has completed.",
+  DOCUMENT_NOT_FOUND: "We could not find that document. Try refreshing the page.",
 
   // Gate 1
   GATE1_VALIDATION_FAILED:
