@@ -19,6 +19,13 @@ import { formatCriticReason } from "@/lib/critic-reason-labels";
 
 export type Gate3SectionDisplayStatus = "checked" | "edited" | "needs_review" | "not_provided";
 
+export type NormalizedCriticIssue = {
+  reason: string;
+  claimText: string | null;
+  severity: CriticSeverity;
+  severityLabel: string;
+};
+
 export type NormalizedReportSection = {
   sectionKey: string;
   label: string;
@@ -28,6 +35,7 @@ export type NormalizedReportSection = {
   fullText: string;
   isNotProvided: boolean;
   unacceptedFlags: ReportCriticFlag[];
+  criticIssues: NormalizedCriticIssue[];
   primaryCriticIssue: string | null;
   primaryCriticSeverity: CriticSeverity | null;
   severityLabel: string | null;
@@ -131,6 +139,12 @@ export function normalizeReportSection(section: ReportSection): NormalizedReport
   const primaryFlag = unacceptedFlags[0] ?? null;
   const fullText = notProvided ? "" : (section.content?.text ?? "");
   const previewText = notProvided ? GATE3_LABEL.NOT_PROVIDED_PREVIEW : truncatePreview(fullText);
+  const criticIssues: NormalizedCriticIssue[] = unacceptedFlags.map((flag) => ({
+    reason: formatCriticReason(flag.reason),
+    claimText: flag.claim_text?.trim() ? flag.claim_text.trim() : null,
+    severity: flag.severity,
+    severityLabel: severityLabel(flag.severity) ?? GATE3_CRITIC_SEVERITY_LABEL.WARN,
+  }));
 
   return {
     sectionKey: section.section_key,
@@ -141,6 +155,7 @@ export function normalizeReportSection(section: ReportSection): NormalizedReport
     fullText,
     isNotProvided: notProvided,
     unacceptedFlags,
+    criticIssues,
     primaryCriticIssue: primaryFlag ? formatCriticReason(primaryFlag.reason) : null,
     primaryCriticSeverity: primaryFlag?.severity ?? null,
     severityLabel: severityLabel(primaryFlag?.severity ?? null),

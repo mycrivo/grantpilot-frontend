@@ -9,7 +9,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "react": "19.1.0",
@@ -25,6 +27,7 @@
     "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.5.12",
-    "@eslint/eslintrc": "^3"
+    "@eslint/eslintrc": "^3",
+    "vitest": "^3.2.4"
   }
 }

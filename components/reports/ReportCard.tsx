@@ -53,6 +53,7 @@ function formatLastUpdated(value: string): string {
 export function ReportCard({ report }: ReportCardProps) {
   const chip = resolveReportListStatusChip(report.status, report.current_gate, {
     latestJobStatus: report.latest_job_status,
+    latestJobStage: report.latest_job_stage,
   });
   const reportHref =
     chip.cta === "Start over" ? reportUploadPath(report.id) : `/reports/${encodeURIComponent(report.id)}`;

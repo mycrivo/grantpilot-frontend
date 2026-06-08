@@ -9,6 +9,7 @@ import {
   DONOR_REPORT_STATUS,
   REPORT_JOB_STAGE,
   REPORT_JOB_STATUS,
+  type CurrentGate,
   type ReportJobStage,
 } from "@/lib/me-enums";
 
@@ -31,17 +32,21 @@ function isActiveJob(job: ReportJobStatusResponse): boolean {
   return job.status === REPORT_JOB_STATUS.QUEUED || job.status === REPORT_JOB_STATUS.RUNNING;
 }
 
-function resolveAwaitingHumanSubpath(job: ReportJobStatusResponse): ReportDetailSubpath {
-  if (job.current_gate === CURRENT_GATE.GATE1) {
+function resolveGateSubpath(currentGate: CurrentGate): ReportDetailSubpath {
+  if (currentGate === CURRENT_GATE.GATE1) {
     return "facts";
   }
-  if (job.current_gate === CURRENT_GATE.GATE2) {
+  if (currentGate === CURRENT_GATE.GATE2) {
     return "questions";
   }
-  if (job.current_gate === CURRENT_GATE.GATE3) {
+  if (currentGate === CURRENT_GATE.GATE3) {
     return "review";
   }
   return "reading";
+}
+
+function resolveAwaitingHumanSubpath(job: ReportJobStatusResponse): ReportDetailSubpath {
+  return resolveGateSubpath(job.current_gate);
 }
 
 /** Map authoritative job + report state to the detail sub-route segment. */
@@ -59,6 +64,9 @@ export function resolveReportDetailSubpath(
     }
     if (report.status === DONOR_REPORT_STATUS.DEGRADED) {
       return "done";
+    }
+    if (report.current_gate !== CURRENT_GATE.NONE) {
+      return resolveGateSubpath(report.current_gate);
     }
     return "reading";
   }

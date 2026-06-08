@@ -3,6 +3,7 @@
 import { Gate1AddFactForm } from "@/components/reports/gate1/Gate1AddFactForm";
 import { Gate1ConflictPanel } from "@/components/reports/gate1/Gate1ConflictPanel";
 import { Gate1FactRow } from "@/components/reports/gate1/Gate1FactRow";
+import { Gate1UnreadableSourcesPanel } from "@/components/reports/gate1/Gate1UnreadableSourcesPanel";
 import { GATE1_LABEL } from "@/components/reports/report-status-labels";
 import type { KnowledgeBankResponse } from "@/lib/api/reports";
 import { buildKnowledgeBankView } from "@/lib/knowledge-bank-view";
@@ -37,6 +38,8 @@ export function Gate1ReviewFacts({
         <h1 className="text-[28px] font-bold leading-tight text-brand-text-primary">{GATE1_LABEL.TITLE}</h1>
         <p className="mt-2 text-[15px] text-secondary">{GATE1_LABEL.SUBTITLE}</p>
       </header>
+
+      <Gate1UnreadableSourcesPanel sources={view.unreadableSources} />
 
       {view.unresolvedConflicts.map((conflict) => (
         <Gate1ConflictPanel

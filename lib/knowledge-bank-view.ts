@@ -2,7 +2,8 @@
  * Normalizes §12.4 knowledge-bank payloads for Gate 1 UI (DB_FIELD_CONTRACT §2.6).
  */
 
-import type { KnowledgeBankResponse } from "@/lib/api/reports";
+import type { KnowledgeBankResponse, UnreadableSource } from "@/lib/api/reports";
+import { formatUnreadableSourceExplanation } from "@/lib/unreadable-source-labels";
 
 export type NormalizedFact = {
   key: string;
@@ -94,10 +95,29 @@ export function normalizeFacts(
     });
 }
 
+export type NormalizedUnreadableSource = {
+  sourceDocumentId: string;
+  sourceLabel: string;
+  explanation: string;
+};
+
+export function normalizeUnreadableSources(sources: UnreadableSource[] | undefined): NormalizedUnreadableSource[] {
+  if (!sources?.length) {
+    return [];
+  }
+
+  return sources.map((source) => ({
+    sourceDocumentId: source.source_document_id,
+    sourceLabel: source.source_label,
+    explanation: formatUnreadableSourceExplanation(source.code, source.message),
+  }));
+}
+
 export function buildKnowledgeBankView(knowledgeBank: KnowledgeBankResponse): {
   facts: NormalizedFact[];
   conflicts: NormalizedConflict[];
   unresolvedConflicts: NormalizedConflict[];
+  unreadableSources: NormalizedUnreadableSource[];
 } {
   const conflicts = normalizeConflicts(knowledgeBank.conflicts);
   const unresolvedConflictKeys = new Set(
@@ -109,6 +129,7 @@ export function buildKnowledgeBankView(knowledgeBank: KnowledgeBankResponse): {
     facts,
     conflicts,
     unresolvedConflicts: conflicts.filter((conflict) => !conflict.isResolved),
+    unreadableSources: normalizeUnreadableSources(knowledgeBank.unreadable_sources),
   };
 }
 

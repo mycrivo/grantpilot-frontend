@@ -19,6 +19,7 @@ export const REPORT_LIST_STATUS_LABEL = {
   NEEDS_YOUR_REVIEW: "Needs your review",
   DRAFT_READY: "Draft ready",
   GENERATION_FAILED: "Generation failed",
+  COMPLETED_WITH_LIMITATIONS: "Completed with limitations",
   READY_TO_DOWNLOAD: "Ready to download",
   DOWNLOADED: "Downloaded",
 } as const;
@@ -50,6 +51,7 @@ export function resolveReportListStatusChip(
   options?: {
     exportDownloaded?: boolean;
     latestJobStatus?: ReportJobStatus | null;
+    latestJobStage?: ReportJobStage | null;
   },
 ): ReportListStatusChip {
   if (options?.latestJobStatus === REPORT_JOB_STATUS.FAILED) {
@@ -79,11 +81,16 @@ export function resolveReportListStatusChip(
     };
   }
 
-  if (
-    status === DONOR_REPORT_STATUS.AWAITING_REVIEW ||
-    status === DONOR_REPORT_STATUS.DEGRADED ||
-    isReviewGate(currentGate)
-  ) {
+  if (status === DONOR_REPORT_STATUS.DEGRADED) {
+    return {
+      key: "COMPLETED_WITH_LIMITATIONS",
+      label: REPORT_LIST_STATUS_LABEL.COMPLETED_WITH_LIMITATIONS,
+      tone: "warning",
+      cta: "View report",
+    };
+  }
+
+  if (status === DONOR_REPORT_STATUS.AWAITING_REVIEW || isReviewGate(currentGate)) {
     return {
       key: "NEEDS_YOUR_REVIEW",
       label: REPORT_LIST_STATUS_LABEL.NEEDS_YOUR_REVIEW,
@@ -208,7 +215,37 @@ export const REPORT_DETAIL_ERROR_LABEL = {
     "It may have been removed. Go back to your M&E Reports page to start or open another one.",
   READING_FAILED: "We could not finish reading your documents.",
   READING_FAILED_BODY: "Please try again, or remove the problem file and read your documents again.",
+  DRAFTING_FAILED: "We could not finish drafting your report.",
+  DRAFTING_FAILED_BODY:
+    "Please try again. If the problem continues, go back and check the facts and answers you confirmed.",
+  EXPORT_FAILED: "We could not prepare your download.",
+  EXPORT_FAILED_BODY: "Please try again. Your draft sections are saved — you can return to review and retry.",
 } as const;
+
+export type JobFailureCopy = {
+  headline: string;
+  body: string;
+};
+
+/** Stage-specific failure headlines — never surface raw job.error. */
+export function resolveJobFailureCopy(stage: ReportJobStage): JobFailureCopy {
+  if (stage === REPORT_JOB_STAGE.SYNTHESISE || stage === REPORT_JOB_STAGE.CRITIQUE) {
+    return {
+      headline: REPORT_DETAIL_ERROR_LABEL.DRAFTING_FAILED,
+      body: REPORT_DETAIL_ERROR_LABEL.DRAFTING_FAILED_BODY,
+    };
+  }
+  if (stage === REPORT_JOB_STAGE.EXPORT) {
+    return {
+      headline: REPORT_DETAIL_ERROR_LABEL.EXPORT_FAILED,
+      body: REPORT_DETAIL_ERROR_LABEL.EXPORT_FAILED_BODY,
+    };
+  }
+  return {
+    headline: REPORT_DETAIL_ERROR_LABEL.READING_FAILED,
+    body: REPORT_DETAIL_ERROR_LABEL.READING_FAILED_BODY,
+  };
+}
 
 /** Reading step — resolved but no active job to poll (e.g. awaiting pipeline resume). */
 export const REPORT_READING_HOLDING_LABEL = {
@@ -220,6 +257,9 @@ export const REPORT_READING_HOLDING_LABEL = {
 export const REPORT_DEGRADED_LABEL = {
   TITLE: "Completed with limitations",
   BODY: "Some sections could not be fully generated. You can still download what is available and review the summary below.",
+  DONE_HEADLINE: "Your report is available",
+  DONE_SUBHEAD:
+    "Download the formatted Word document. Some sections may show as not provided where source data was missing.",
 } as const;
 
 export const REPORT_GATE_PLACEHOLDER_LABEL = {
@@ -252,6 +292,10 @@ export const GATE1_LABEL = {
   USER_SOURCE_LABEL: "Added by you",
   CONFIRMING: "Confirming…",
   SAVING: "Saving…",
+  UNREADABLE_HEADING: "We could not read some files",
+  UNREADABLE_SUBHEADING:
+    "These documents could not be extracted. Missing details will appear as not provided in your report — GrantPilot will not invent figures from them.",
+  UNREADABLE_TRUST_LINE: "You can still confirm the facts we found from your other documents.",
 } as const;
 
 /** Screen 7 — Gate 2 missing questions (ME_MODULE_REPORTS_NGO_UI.html). */

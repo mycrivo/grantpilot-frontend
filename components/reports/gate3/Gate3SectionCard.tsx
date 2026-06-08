@@ -60,15 +60,26 @@ export function Gate3SectionCard({ section, saving, onSave }: Gate3SectionCardPr
         </span>
       </div>
 
-      {section.primaryCriticIssue ? (
-        <div className="mt-3 rounded-[8px] border border-brand-warning/30 bg-brand-warning/5 px-3 py-2 text-sm">
-          {section.severityLabel ? (
-            <p className="font-semibold text-brand-warning">{section.severityLabel}</p>
-          ) : null}
-          <p className={section.severityLabel ? "mt-1 text-secondary" : "text-secondary"}>
-            <span className="font-medium text-brand-text-primary">{CRITIC_REASON_PREFIX}</span>
-            {section.primaryCriticIssue}
-          </p>
+      {section.criticIssues.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {section.criticIssues.map((issue, index) => (
+            <div
+              key={`${section.sectionKey}-critic-${index}`}
+              className="rounded-[8px] border border-brand-warning/30 bg-brand-warning/5 px-3 py-2 text-sm"
+            >
+              <p className="font-semibold text-brand-warning">{issue.severityLabel}</p>
+              {issue.claimText ? (
+                <p className="mt-1 text-brand-text-primary">
+                  <span className="font-medium">Claim: </span>
+                  {issue.claimText}
+                </p>
+              ) : null}
+              <p className={issue.claimText ? "mt-1 text-secondary" : "mt-1 text-secondary"}>
+                <span className="font-medium text-brand-text-primary">{CRITIC_REASON_PREFIX}</span>
+                {issue.reason}
+              </p>
+            </div>
+          ))}
         </div>
       ) : null}
 

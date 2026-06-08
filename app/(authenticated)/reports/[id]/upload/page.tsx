@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 
+import { ReportsQuotaExhausted } from "@/components/reports/ReportsQuotaExhausted";
 import { ReportDocumentUpload } from "@/components/reports/ReportDocumentUpload";
 import { ReportsFunnelHeader } from "@/components/reports/ReportsFunnelHeader";
 import { ReportNotFound } from "@/components/reports/ReportNotFound";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
-import { enqueueReportJob } from "@/lib/api/reports";
+import { enqueueReportJob, reportReadingPath } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
 import { useReportSubpathGuard } from "@/lib/report-subpath-guard";
 
@@ -23,6 +24,7 @@ export default function UploadReportPage({ params }: UploadReportPageProps) {
   const [uploadedCount, setUploadedCount] = useState(0);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<ApiClientError | null>(null);
+  const [quotaResetAt, setQuotaResetAt] = useState<string | null | undefined>(undefined);
 
   const handleStart = async () => {
     if (uploadedCount < 1) {
@@ -31,11 +33,18 @@ export default function UploadReportPage({ params }: UploadReportPageProps) {
 
     setStarting(true);
     setStartError(null);
+    setQuotaResetAt(undefined);
 
     try {
       await enqueueReportJob(reportId);
-      router.push("/reports");
+      router.push(reportReadingPath(reportId));
     } catch (error) {
+      if (error instanceof ApiClientError && (error.status === 429 || error.errorCode === "QUOTA_EXCEEDED")) {
+        const resetAt = typeof error.details?.reset_at === "string" ? error.details.reset_at : null;
+        setQuotaResetAt(resetAt);
+        setStarting(false);
+        return;
+      }
       setStartError(
         error instanceof ApiClientError
           ? error
@@ -87,6 +96,8 @@ export default function UploadReportPage({ params }: UploadReportPageProps) {
         </header>
 
         <ReportDocumentUpload reportId={reportId} onUploadedCountChange={setUploadedCount} />
+
+        {quotaResetAt !== undefined ? <ReportsQuotaExhausted resetAt={quotaResetAt} /> : null}
 
         {startError ? <ErrorDisplay error={startError} /> : null}
 

@@ -5,8 +5,8 @@ import { reportUploadPath } from "@/lib/api/reports";
 import { REPORT_JOB_STATUS } from "@/lib/me-enums";
 
 import {
-  REPORT_DETAIL_ERROR_LABEL,
   REPORT_READING_FAILED_LABEL,
+  resolveJobFailureCopy,
   resolveReportJobProgressHeadline,
   resolveReportReadingWorkSteps,
   type ReportReadingWorkStep,
@@ -39,9 +39,8 @@ function workStepStateLabel(state: ReportReadingWorkStep["state"]): string {
 
 export function ReportReadingProgress({ job, reportId }: ReportReadingProgressProps) {
   const hasError = job.status === REPORT_JOB_STATUS.FAILED;
-  const headline = hasError
-    ? REPORT_DETAIL_ERROR_LABEL.READING_FAILED
-    : resolveReportJobProgressHeadline(job.stage);
+  const failureCopy = resolveJobFailureCopy(job.stage);
+  const headline = hasError ? failureCopy.headline : resolveReportJobProgressHeadline(job.stage);
   const workSteps = resolveReportReadingWorkSteps(job.stage);
 
   return (
@@ -58,7 +57,7 @@ export function ReportReadingProgress({ job, reportId }: ReportReadingProgressPr
       {hasError ? (
         <div className="space-y-4 text-left">
           <div className="rounded-[12px] border border-brand-error/30 bg-brand-error/5 p-4">
-            <p className="text-sm text-secondary">{REPORT_DETAIL_ERROR_LABEL.READING_FAILED_BODY}</p>
+            <p className="text-sm text-secondary">{failureCopy.body}</p>
           </div>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link href={reportUploadPath(reportId)} className="btn-primary inline-flex min-h-10 items-center px-6">

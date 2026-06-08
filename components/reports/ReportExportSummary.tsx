@@ -14,6 +14,7 @@ import {
 import { isReportDegraded } from "@/lib/report-detail-routing";
 
 import { ReportDegradedNotice } from "./ReportDegradedNotice";
+import { REPORT_DEGRADED_LABEL } from "./report-status-labels";
 
 type ReportExportSummaryProps = {
   report: ReportDetailResponse;
@@ -115,14 +116,24 @@ export function ReportExportSummary({ report, reportId }: ReportExportSummaryPro
       {degraded ? <ReportDegradedNotice failedSectionCount={failedSectionCount} /> : null}
 
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-brand-success/30 bg-brand-success/10 text-2xl text-brand-success">
-          ✓
+        <span
+          className={`flex h-11 w-11 items-center justify-center rounded-[12px] border text-2xl ${
+            degraded
+              ? "border-brand-warning/30 bg-brand-warning/10 text-brand-warning"
+              : "border-brand-success/30 bg-brand-success/10 text-brand-success"
+          }`}
+        >
+          {degraded ? "!" : "✓"}
         </span>
-        <h1 className="text-[28px] font-bold leading-tight text-brand-text-primary">Your report is ready</h1>
+        <h1 className="text-[28px] font-bold leading-tight text-brand-text-primary">
+          {degraded ? REPORT_DEGRADED_LABEL.DONE_HEADLINE : "Your report is ready"}
+        </h1>
       </div>
 
       <p className="text-[15px] text-secondary">
-        Download the formatted Word document and make any final checks before submitting it to your funder.
+        {degraded
+          ? REPORT_DEGRADED_LABEL.DONE_SUBHEAD
+          : "Download the formatted Word document and make any final checks before submitting it to your funder."}
       </p>
 
       <div className="flex items-center gap-4 rounded-[12px] border border-brand-border bg-brand-card-bg p-4">

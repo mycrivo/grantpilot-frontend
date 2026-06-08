@@ -22,7 +22,6 @@ import type {
   ReportingFrequency,
   SectionGenerationStatus,
 } from "@/lib/me-enums";
-import { REPORT_EXPORT_FORMAT } from "@/lib/me-enums";
 
 // ——— §12.1 report templates ———
 
@@ -80,6 +79,15 @@ export type UploadedDocumentListResponse = {
   documents: UploadedDocumentResponse[];
 };
 
+// ——— §12.4 unreadable sources (Gate 1) ———
+
+export type UnreadableSource = {
+  source_document_id: string;
+  source_label: string;
+  code: string;
+  message: string;
+};
+
 // ——— §12.4 / §12.5 knowledge bank ———
 
 export type KnowledgeBankResponse = {
@@ -89,7 +97,7 @@ export type KnowledgeBankResponse = {
   gate1_confirmed_at: string | null;
   ready_for_gate1: boolean;
   knowledge_bank_json?: Record<string, unknown>;
-  unreadable_sources?: unknown[];
+  unreadable_sources?: UnreadableSource[];
   reconciliation_outcome?: string | null;
 };
 
@@ -282,6 +290,7 @@ export type ReportListItem = {
   current_gate: CurrentGate;
   latest_job_status: ReportJobStatus | null;
   latest_job_stage: ReportJobStage | null;
+  document_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -441,11 +450,10 @@ export function patchReportSection(reportId: string, sectionKey: string, body: P
   );
 }
 
-/** §12.13 POST /api/reports/{id}/export — returns blob metadata (no auto-download). */
-export function downloadReportExport(reportId: string, exportFormat: ReportExportFormat = REPORT_EXPORT_FORMAT.DOCX) {
+/** §12.13 GET /api/reports/{id}/export — returns DOCX blob. */
+export function downloadReportExport(reportId: string) {
   return apiDownloadBlob(`${reportPath(reportId)}/export`, {
-    method: "POST",
-    body: JSON.stringify({ export_format: exportFormat } satisfies ExportReportRequest),
+    method: "GET",
   });
 }
 

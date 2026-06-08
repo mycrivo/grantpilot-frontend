@@ -4,12 +4,15 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { DASHBOARD_REPORTS_LABEL, resolveReportListStatusChip } from "@/components/reports/report-status-labels";
 import type { ReportListItem } from "@/lib/api/reports";
 import { resolveReportDisplayNames } from "@/lib/report-display-names";
+import { filterVisibleReportListItems } from "@/lib/report-sentinel-shell";
 
 type ReportsDashboardGlanceProps = {
   reports: ReportListItem[];
 };
 
 export function ReportsDashboardGlance({ reports }: ReportsDashboardGlanceProps) {
+  const visibleReports = filterVisibleReportListItems(reports);
+
   return (
     <section className="card space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -19,13 +22,14 @@ export function ReportsDashboardGlance({ reports }: ReportsDashboardGlanceProps)
         </Link>
       </div>
 
-      {reports.length === 0 ? (
+      {visibleReports.length === 0 ? (
         <p className="text-secondary">{DASHBOARD_REPORTS_LABEL.EMPTY}</p>
       ) : (
         <ul className="space-y-3">
-          {reports.map((report) => {
+          {visibleReports.map((report) => {
             const chip = resolveReportListStatusChip(report.status, report.current_gate, {
               latestJobStatus: report.latest_job_status,
+              latestJobStage: report.latest_job_stage,
             });
             const { title, funder } = resolveReportDisplayNames(report);
             return (
