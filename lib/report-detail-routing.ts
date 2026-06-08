@@ -45,8 +45,51 @@ function resolveGateSubpath(currentGate: CurrentGate): ReportDetailSubpath {
   return "reading";
 }
 
-function resolveAwaitingHumanSubpath(job: ReportJobStatusResponse): ReportDetailSubpath {
-  return resolveGateSubpath(job.current_gate);
+/** Backend job API does not return current_gate — map stage cursor per pipeline halt semantics. */
+function resolveAwaitingHumanSubpath(
+  job: ReportJobStatusResponse,
+  report: ReportDetailResponse,
+): ReportDetailSubpath {
+  // #region agent log
+  fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
+    body: JSON.stringify({
+      sessionId: "1949da",
+      hypothesisId: "H1-H2",
+      location: "report-detail-routing.ts:resolveAwaitingHumanSubpath",
+      message: "awaiting_human routing inputs",
+      data: {
+        jobStage: job.stage,
+        jobStatus: job.status,
+        jobCurrentGate: job.current_gate ?? null,
+        reportCurrentGate: report.current_gate,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  if (job.stage === REPORT_JOB_STAGE.GAP) {
+    return "facts";
+  }
+  if (job.stage === REPORT_JOB_STAGE.SYNTHESISE) {
+    return "questions";
+  }
+  if (job.stage === REPORT_JOB_STAGE.EXPORT) {
+    return "review";
+  }
+  if (job.stage === REPORT_JOB_STAGE.CRITIQUE) {
+    return report.current_gate === CURRENT_GATE.GATE3 ? "review" : "questions";
+  }
+
+  if (job.current_gate && job.current_gate !== CURRENT_GATE.NONE) {
+    return resolveGateSubpath(job.current_gate);
+  }
+  if (report.current_gate !== CURRENT_GATE.NONE) {
+    return resolveGateSubpath(report.current_gate);
+  }
+  return "reading";
 }
 
 /** Map authoritative job + report state to the detail sub-route segment. */
@@ -76,7 +119,22 @@ export function resolveReportDetailSubpath(
   }
 
   if (job.status === REPORT_JOB_STATUS.AWAITING_HUMAN) {
-    return resolveAwaitingHumanSubpath(job);
+    const subpath = resolveAwaitingHumanSubpath(job, report);
+    // #region agent log
+    fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
+      body: JSON.stringify({
+        sessionId: "1949da",
+        hypothesisId: "H1",
+        location: "report-detail-routing.ts:resolveReportDetailSubpath",
+        message: "resolved awaiting_human subpath",
+        data: { subpath, jobStage: job.stage },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    return subpath;
   }
 
   if (job.status === REPORT_JOB_STATUS.DONE) {
@@ -84,7 +142,7 @@ export function resolveReportDetailSubpath(
       return "done";
     }
     if (report.status === DONOR_REPORT_STATUS.AWAITING_REVIEW) {
-      return resolveAwaitingHumanSubpath(job);
+      return resolveAwaitingHumanSubpath(job, report);
     }
     return "done";
   }

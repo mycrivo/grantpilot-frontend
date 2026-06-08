@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ReportDetailResponse, ReportJobStatusResponse } from "@/lib/api/reports";
 import { resolveReportDetailSubpath } from "@/lib/report-detail-routing";
-import { CURRENT_GATE, DONOR_REPORT_STATUS, REPORT_JOB_STATUS } from "@/lib/me-enums";
+import { CURRENT_GATE, DONOR_REPORT_STATUS, REPORT_JOB_STAGE, REPORT_JOB_STATUS } from "@/lib/me-enums";
 
 function baseReport(overrides: Partial<ReportDetailResponse> = {}): ReportDetailResponse {
   return {
@@ -80,5 +80,54 @@ describe("resolveReportDetailSubpath with failed job", () => {
     } as ReportJobStatusResponse;
 
     expect(resolveReportDetailSubpath(baseReport(), job)).toBe("reading");
+  });
+});
+
+describe("resolveReportDetailSubpath awaiting_human", () => {
+  it("routes gap+awaiting_human to facts (Gate 1 halt) without job.current_gate", () => {
+    const job = {
+      job_id: "job-1",
+      donor_report_id: "report-1",
+      stage: REPORT_JOB_STAGE.GAP,
+      status: REPORT_JOB_STATUS.AWAITING_HUMAN,
+      error: null,
+      started_at: null,
+      finished_at: null,
+    } as ReportJobStatusResponse;
+
+    expect(
+      resolveReportDetailSubpath(
+        baseReport({ status: DONOR_REPORT_STATUS.DRAFT, current_gate: CURRENT_GATE.GATE1 }),
+        job,
+      ),
+    ).toBe("facts");
+  });
+
+  it("routes synthesise+awaiting_human to questions (Gate 2 halt)", () => {
+    const job = {
+      job_id: "job-1",
+      donor_report_id: "report-1",
+      stage: REPORT_JOB_STAGE.SYNTHESISE,
+      status: REPORT_JOB_STATUS.AWAITING_HUMAN,
+      error: null,
+      started_at: null,
+      finished_at: null,
+    } as ReportJobStatusResponse;
+
+    expect(resolveReportDetailSubpath(baseReport(), job)).toBe("questions");
+  });
+
+  it("routes export+awaiting_human to review (Gate 3 halt)", () => {
+    const job = {
+      job_id: "job-1",
+      donor_report_id: "report-1",
+      stage: REPORT_JOB_STAGE.EXPORT,
+      status: REPORT_JOB_STATUS.AWAITING_HUMAN,
+      error: null,
+      started_at: null,
+      finished_at: null,
+    } as ReportJobStatusResponse;
+
+    expect(resolveReportDetailSubpath(baseReport(), job)).toBe("review");
   });
 });

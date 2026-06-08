@@ -204,7 +204,8 @@ export type ReportJobStatusResponse = {
   error: string | null;
   started_at: string | null;
   finished_at: string | null;
-  current_gate: CurrentGate;
+  /** Not returned by backend GET /job today — routing uses job.stage instead. */
+  current_gate?: CurrentGate;
 };
 
 // ——— §12.8a gate 3 ———
