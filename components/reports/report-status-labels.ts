@@ -30,7 +30,7 @@ export type ReportListStatusChip = {
   key: ReportListStatusLabelKey;
   label: (typeof REPORT_LIST_STATUS_LABEL)[ReportListStatusLabelKey];
   tone: "success" | "warning" | "error" | "neutral";
-  cta: "Continue" | "View report" | "Start over";
+  cta: "Continue" | "View report" | "Start over" | "View details";
 };
 
 function isActiveJobStatus(status: ReportJobStatus | null | undefined): boolean {
