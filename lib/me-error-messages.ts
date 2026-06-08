@@ -34,6 +34,9 @@ export const ME_ERROR_MESSAGE: Record<string, string> = {
   REPORT_HAS_COMPLETED_RUN: "Documents cannot be removed after a report run has completed.",
   DOCUMENT_NOT_FOUND: "We could not find that document. Try refreshing the page.",
 
+  // P1 door — server message is lane-specific contract copy; pass through in resolver.
+  UNSUPPORTED_DOCUMENT_FORMAT: "__SERVER_MESSAGE__",
+
   // Gate 1
   GATE1_VALIDATION_FAILED:
     "Some project facts could not be saved. Please review the highlighted items and try again.",
@@ -78,8 +81,17 @@ export function resolveFriendlyApiErrorMessage(
   }
 
   const code = resolveErrorCode(error);
+  if (code === "UNSUPPORTED_DOCUMENT_FORMAT") {
+    const serverMessage = typeof error.message === "string" ? error.message.trim() : "";
+    if (serverMessage) {
+      return serverMessage;
+    }
+  }
   if (code && ME_ERROR_MESSAGE[code]) {
-    return ME_ERROR_MESSAGE[code];
+    const mapped = ME_ERROR_MESSAGE[code];
+    if (mapped !== "__SERVER_MESSAGE__") {
+      return mapped;
+    }
   }
 
   if (error.status === 429) {
