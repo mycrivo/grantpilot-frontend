@@ -41,26 +41,6 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
       const context = await fetchReportRoutingContext(reportId);
       const resolved = resolveReportDetailSubpath(context.report, context.job);
 
-      // #region agent log
-      fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
-        body: JSON.stringify({
-          sessionId: "1949da",
-          hypothesisId: "H3-H4",
-          location: "reading/page.tsx:refresh",
-          message: "reading page poll resolved route",
-          data: {
-            resolved,
-            jobStatus: context.job?.status ?? null,
-            jobStage: context.job?.stage ?? null,
-            reportCurrentGate: context.report.current_gate,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-
       if (resolved !== "reading") {
         router.replace(reportDispatchPath(reportId));
         return false;

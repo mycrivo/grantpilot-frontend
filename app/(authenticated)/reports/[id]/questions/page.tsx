@@ -26,7 +26,7 @@ import {
   normalizeGapQuestions,
   type GapQuestionState,
 } from "@/lib/gap-view";
-import { reportDispatchPath, useReportSubpathGuard } from "@/lib/report-subpath-guard";
+import { useReportSubpathGuard } from "@/lib/report-subpath-guard";
 
 type QuestionsReportPageProps = {
   params: Promise<{ id: string }>;
@@ -82,11 +82,6 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
         }
       } catch (loadError) {
         if (cancelled) {
-          return;
-        }
-
-        if (loadError instanceof ApiClientError && loadError.status === 404) {
-          router.replace(reportDispatchPath(reportId));
           return;
         }
 

@@ -57,29 +57,6 @@ export function ReportCard({ report }: ReportCardProps) {
   const reportHref = `/reports/${encodeURIComponent(report.id)}`;
   const { title, funder } = resolveReportDisplayNames(report);
 
-  // #region agent log
-  if (chip.key === "GENERATION_FAILED") {
-    fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
-      body: JSON.stringify({
-        sessionId: "1949da",
-        hypothesisId: "H1",
-        location: "ReportCard.tsx:render",
-        message: "failed report card CTA target",
-        data: {
-          reportId: report.id,
-          reportHref,
-          jobStage: report.latest_job_stage,
-          jobStatus: report.latest_job_status,
-          cta: chip.cta,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
-
   return (
     <article className="flex flex-col gap-4 rounded-[12px] border border-brand-border bg-brand-card-bg p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">

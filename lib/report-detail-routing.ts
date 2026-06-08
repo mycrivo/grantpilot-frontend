@@ -50,26 +50,6 @@ function resolveAwaitingHumanSubpath(
   job: ReportJobStatusResponse,
   report: ReportDetailResponse,
 ): ReportDetailSubpath {
-  // #region agent log
-  fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
-    body: JSON.stringify({
-      sessionId: "1949da",
-      hypothesisId: "H1-H2",
-      location: "report-detail-routing.ts:resolveAwaitingHumanSubpath",
-      message: "awaiting_human routing inputs",
-      data: {
-        jobStage: job.stage,
-        jobStatus: job.status,
-        jobCurrentGate: job.current_gate ?? null,
-        reportCurrentGate: report.current_gate,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   if (job.stage === REPORT_JOB_STAGE.GAP) {
     return "facts";
   }
@@ -119,22 +99,7 @@ export function resolveReportDetailSubpath(
   }
 
   if (job.status === REPORT_JOB_STATUS.AWAITING_HUMAN) {
-    const subpath = resolveAwaitingHumanSubpath(job, report);
-    // #region agent log
-    fetch("http://127.0.0.1:7731/ingest/4e17683d-a53a-4b2f-befb-0a2025f75c7e", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1949da" },
-      body: JSON.stringify({
-        sessionId: "1949da",
-        hypothesisId: "H1",
-        location: "report-detail-routing.ts:resolveReportDetailSubpath",
-        message: "resolved awaiting_human subpath",
-        data: { subpath, jobStage: job.stage },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    return subpath;
+    return resolveAwaitingHumanSubpath(job, report);
   }
 
   if (job.status === REPORT_JOB_STATUS.DONE) {
