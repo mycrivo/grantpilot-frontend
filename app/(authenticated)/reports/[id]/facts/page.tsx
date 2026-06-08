@@ -161,6 +161,27 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     }
   };
 
+  const handleResolveClientConflict = async (factKeys: string[], resolvedValue: string) => {
+    setSaving(true);
+    setConfirmError(null);
+    try {
+      const facts: Record<string, { value: string; confirmed: boolean }> = {};
+      for (const factKey of factKeys) {
+        facts[factKey] = { value: resolvedValue, confirmed: true };
+      }
+      await patchKnowledgeBank(reportId, { facts });
+      await refreshAfterPatch();
+    } catch (patchError) {
+      setError(
+        patchError instanceof ApiClientError
+          ? patchError
+          : new ApiClientError(500, "Failed to save conflict resolution."),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleConfirm = async () => {
     if (!knowledgeBank) {
       return;
@@ -225,6 +246,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
         confirmError={confirmError}
         onSaveFact={handleSaveFact}
         onResolveConflict={handleResolveConflict}
+        onResolveClientConflict={handleResolveClientConflict}
         onAddFact={handleAddFact}
         onConfirm={handleConfirm}
       />

@@ -296,6 +296,22 @@ export const GATE1_LABEL = {
   UNREADABLE_SUBHEADING:
     "These documents could not be extracted. Missing details will appear as not provided in your report — GrantPilot will not invent figures from them.",
   UNREADABLE_TRUST_LINE: "You can still confirm the facts we found from your other documents.",
+  DEGRADED_HEADING: "Documents not fully merged",
+  DEGRADED_BODY:
+    "We extracted your documents but could not fully merge them. Review duplicates carefully before confirming.",
+  NEEDS_DECISION: "Needs your decision",
+  NEEDS_DECISION_COUNT: (count: number) =>
+    count === 1 ? "1 item needs your decision" : `${count} items need your decision`,
+  SECTION_PROGRAMME: "Programme summary",
+  SECTION_INDICATORS: "Indicators",
+  SECTION_FINANCIALS: "Financials by output",
+  SECTION_OBJECTIVES: "Objectives and activities",
+  SECTION_REPORTING: "Reporting obligations",
+  SECTION_OTHER: "Other details",
+  ALSO_FOUND_IN: "Also found in:",
+  ROWS: (count: number) => (count === 1 ? "1 item" : `${count} items`),
+  SEARCH_PLACEHOLDER: "Search facts…",
+  STICKY_CONFIRM_HINT: "Resolve all conflicts before confirming.",
 } as const;
 
 /** Screen 7 — Gate 2 missing questions (ME_MODULE_REPORTS_NGO_UI.html). */

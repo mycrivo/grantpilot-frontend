@@ -42,9 +42,11 @@ export function Gate1FactRow({ fact, saving, onSave }: Gate1FactRowProps) {
           {GATE1_LABEL.SOURCE_PREFIX} {fact.sourceLabel}
         </p>
       </div>
-      <span className="rounded-full border border-brand-border px-2 py-0.5 text-xs font-semibold text-brand-primary">
-        {GATE1_LABEL.FACT_CONFIRMED}
-      </span>
+      {fact.confirmed ? (
+        <span className="rounded-full border border-brand-primary/30 bg-brand-primary/5 px-2 py-0.5 text-xs font-semibold text-brand-primary">
+          {GATE1_LABEL.FACT_CONFIRMED}
+        </span>
+      ) : null}
       {editing ? (
         <div className="flex gap-2">
           <button

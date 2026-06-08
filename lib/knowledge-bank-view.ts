@@ -137,6 +137,8 @@ export function shouldRenderGate1(knowledgeBank: KnowledgeBankResponse): boolean
   return knowledgeBank.ready_for_gate1 && !knowledgeBank.gate1_confirmed_at;
 }
 
+export { buildGate1LayoutView, type Gate1LayoutView } from "@/lib/knowledge-bank-gate1-layout";
+
 export function buildUserAddedFactPayload(label: string, value: string, sourceLabel: string) {
   return {
     value,
