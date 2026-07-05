@@ -1,11 +1,16 @@
 import { GATE1_LABEL } from "@/components/reports/report-status-labels";
 import type { NormalizedUnreadableSource } from "@/lib/knowledge-bank-view";
+import { resolveUnreadableSourceDisplayLabel } from "@/lib/unreadable-source-display";
 
 type Gate1UnreadableSourcesPanelProps = {
   sources: NormalizedUnreadableSource[];
+  documentFilenameById?: Readonly<Record<string, string>>;
 };
 
-export function Gate1UnreadableSourcesPanel({ sources }: Gate1UnreadableSourcesPanelProps) {
+export function Gate1UnreadableSourcesPanel({
+  sources,
+  documentFilenameById,
+}: Gate1UnreadableSourcesPanelProps) {
   if (sources.length === 0) {
     return null;
   }
@@ -20,7 +25,9 @@ export function Gate1UnreadableSourcesPanel({ sources }: Gate1UnreadableSourcesP
             key={source.sourceDocumentId}
             className="rounded-[8px] border border-brand-warning/20 bg-brand-card-bg px-3 py-2 text-sm"
           >
-            <p className="font-semibold text-brand-text-primary">{source.sourceLabel}</p>
+            <p className="font-semibold text-brand-text-primary">
+              {resolveUnreadableSourceDisplayLabel(source, documentFilenameById)}
+            </p>
             <p className="mt-1 text-secondary">{source.explanation}</p>
           </li>
         ))}

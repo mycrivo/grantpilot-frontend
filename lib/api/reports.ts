@@ -228,12 +228,20 @@ export type ReportJobStatusResponse = {
   agent_trace_json?: {
     runs?: unknown[];
     total_estimated_cost_usd?: number;
+    stages?: Record<string, Record<string, unknown>>;
   };
   error: string | null;
   started_at: string | null;
   finished_at: string | null;
   /** Not returned by backend GET /job today — routing uses job.stage instead. */
   current_gate?: CurrentGate;
+};
+
+export type ProposalCheckpointAckResponse = {
+  job_id: string;
+  donor_report_id: string;
+  stage: ReportJobStage;
+  status: ReportJobStatus;
 };
 
 // ——— §12.8a gate 3 ———
@@ -424,6 +432,17 @@ export function getReportJob(reportId: string, jobId?: string) {
 /** §12.8 POST /api/reports/{id}/job */
 export function enqueueReportJob(reportId: string) {
   return apiRequest<EnqueueReportJobResponse>(`${reportPath(reportId)}/job`, { method: "POST" });
+}
+
+/** Proposal extraction checkpoint — ack proceed without proposal content */
+export function ackProposalCheckpointProceed(reportId: string) {
+  return apiRequest<ProposalCheckpointAckResponse>(
+    `${reportPath(reportId)}/jobs/proposal-checkpoint/ack`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action: "proceed_with_gap" }),
+    },
+  );
 }
 
 /** §12.4 GET /api/reports/{id}/knowledge-bank */

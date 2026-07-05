@@ -50,6 +50,9 @@ function resolveAwaitingHumanSubpath(
   job: ReportJobStatusResponse,
   report: ReportDetailResponse,
 ): ReportDetailSubpath {
+  if (job.stage === REPORT_JOB_STAGE.EXTRACT) {
+    return "reading";
+  }
   if (job.stage === REPORT_JOB_STAGE.GAP) {
     return "facts";
   }

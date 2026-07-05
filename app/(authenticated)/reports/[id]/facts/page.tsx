@@ -12,6 +12,7 @@ import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
 import {
   confirmGate1,
   getKnowledgeBank,
+  listReportDocuments,
   patchKnowledgeBank,
   promoteGate1,
   type KnowledgeBankResponse,
@@ -43,6 +44,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [reviewedClusterIds, setReviewedClusterIds] = useState<Set<Gate1ReviewClusterId>>(new Set());
   const [reviewingClusterId, setReviewingClusterId] = useState<Gate1ReviewClusterId | null>(null);
+  const [documentFilenameById, setDocumentFilenameById] = useState<Record<string, string>>({});
 
   const loadKnowledgeBank = useCallback(async () => {
     const bank = await getKnowledgeBank(reportId);
@@ -60,9 +62,15 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
 
     const load = async () => {
       try {
-        const bank = await loadKnowledgeBank();
+        const [bank, documents] = await Promise.all([
+          loadKnowledgeBank(),
+          listReportDocuments(reportId),
+        ]);
         if (!cancelled && bank) {
           setKnowledgeBank(bank);
+          setDocumentFilenameById(
+            Object.fromEntries(documents.documents.map((doc) => [doc.id, doc.original_filename])),
+          );
         }
       } catch (loadError) {
         if (cancelled) {
@@ -300,6 +308,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
         onAddFact={handleAddFact}
         onClusterReview={handleClusterReview}
         onContinue={handleContinue}
+        documentFilenameById={documentFilenameById}
       />
     </section>
   );

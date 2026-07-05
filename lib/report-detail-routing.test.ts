@@ -130,4 +130,18 @@ describe("resolveReportDetailSubpath awaiting_human", () => {
 
     expect(resolveReportDetailSubpath(baseReport(), job)).toBe("review");
   });
+
+  it("routes extract+awaiting_human to reading (proposal checkpoint)", () => {
+    const job = {
+      job_id: "job-1",
+      donor_report_id: "report-1",
+      stage: REPORT_JOB_STAGE.EXTRACT,
+      status: REPORT_JOB_STATUS.AWAITING_HUMAN,
+      error: null,
+      started_at: null,
+      finished_at: null,
+    } as ReportJobStatusResponse;
+
+    expect(resolveReportDetailSubpath(baseReport(), job)).toBe("reading");
+  });
 });

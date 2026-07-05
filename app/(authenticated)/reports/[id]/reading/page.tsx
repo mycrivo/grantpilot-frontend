@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 
+import { ProposalExtractionCheckpoint, proposalCheckpointFromJob } from "@/components/reports/ProposalExtractionCheckpoint";
 import { ReportReadingHolding } from "@/components/reports/ReportReadingHolding";
 import { ReportReadingProgress } from "@/components/reports/ReportReadingProgress";
 import { ReportsFunnelHeader } from "@/components/reports/ReportsFunnelHeader";
@@ -10,7 +11,7 @@ import { ReportsJourneySteps } from "@/components/reports/ReportsJourneySteps";
 import { ReportNotFound } from "@/components/reports/ReportNotFound";
 import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
-import { type ReportJobStatusResponse, resumeCritique } from "@/lib/api/reports";
+import { type ReportJobStatusResponse, listReportDocuments, resumeCritique } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
 import { REPORT_JOB_STAGE, REPORT_JOB_STATUS } from "@/lib/me-enums";
 import { resolveReportDetailSubpath, shouldPollReportJob } from "@/lib/report-detail-routing";
@@ -22,7 +23,7 @@ import {
 
 const POLL_INTERVAL_MS = 3000;
 
-type ReadingView = "pending" | "active" | "failed" | "holding";
+type ReadingView = "pending" | "active" | "failed" | "holding" | "checkpoint";
 
 type ReadingReportPageProps = {
   params: Promise<{ id: string }>;
@@ -34,6 +35,7 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
   const guard = useReportSubpathGuard(reportId, "reading");
   const [readingView, setReadingView] = useState<ReadingView>("pending");
   const [displayJob, setDisplayJob] = useState<ReportJobStatusResponse | null>(null);
+  const [documentFilenameById, setDocumentFilenameById] = useState<Record<string, string>>({});
   const [error, setError] = useState<ApiClientError | null>(null);
 
   const refresh = useCallback(async () => {
@@ -63,6 +65,22 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
 
       if (resolved !== "reading") {
         router.replace(reportDispatchPath(reportId));
+        return false;
+      }
+
+      const checkpoint = proposalCheckpointFromJob(context.job);
+      if (checkpoint) {
+        try {
+          const documents = await listReportDocuments(reportId);
+          setDocumentFilenameById(
+            Object.fromEntries(documents.documents.map((doc) => [doc.id, doc.original_filename])),
+          );
+        } catch {
+          setDocumentFilenameById({});
+        }
+        setDisplayJob(context.job);
+        setReadingView("checkpoint");
+        setError(null);
         return false;
       }
 
@@ -150,6 +168,20 @@ export default function ReadingReportPage({ params }: ReadingReportPageProps) {
       <ReportsJourneySteps current="read" />
       {readingView === "holding" ? (
         <ReportReadingHolding />
+      ) : readingView === "checkpoint" && displayJob ? (
+        (() => {
+          const checkpoint = proposalCheckpointFromJob(displayJob);
+          return checkpoint ? (
+            <ProposalExtractionCheckpoint
+              reportId={reportId}
+              checkpoint={checkpoint}
+              documentFilenameById={documentFilenameById}
+              onProceedStarted={() => router.replace(reportDispatchPath(reportId))}
+            />
+          ) : (
+            <LoadingSkeleton variant="page" lines={6} />
+          );
+        })()
       ) : displayJob ? (
         <ReportReadingProgress job={displayJob} reportId={reportId} />
       ) : (

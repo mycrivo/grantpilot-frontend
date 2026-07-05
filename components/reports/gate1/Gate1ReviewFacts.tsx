@@ -32,6 +32,7 @@ type Gate1ReviewFactsProps = {
   onAddFact: (label: string, value: string, sourceLabel: string) => Promise<void>;
   onClusterReview: (clusterId: Gate1ReviewClusterId) => Promise<void>;
   onContinue: () => Promise<void>;
+  documentFilenameById?: Readonly<Record<string, string>>;
 };
 
 export function Gate1ReviewFacts({
@@ -49,6 +50,7 @@ export function Gate1ReviewFacts({
   onAddFact,
   onClusterReview,
   onContinue,
+  documentFilenameById,
 }: Gate1ReviewFactsProps) {
   const [resolvedClientConflictIds, setResolvedClientConflictIds] = useState<Set<string>>(new Set());
 
@@ -85,7 +87,10 @@ export function Gate1ReviewFacts({
         <Gate1DegradedBanner rawFactCount={layout.rawFactCount} displayFactCount={layout.displayFactCount} />
       ) : null}
 
-      <Gate1UnreadableSourcesPanel sources={layout.unreadableSources} />
+      <Gate1UnreadableSourcesPanel
+        sources={layout.unreadableSources}
+        documentFilenameById={documentFilenameById}
+      />
 
       {saveError ? (
         <div
