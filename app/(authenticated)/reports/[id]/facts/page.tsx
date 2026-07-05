@@ -13,11 +13,17 @@ import {
   confirmGate1,
   getKnowledgeBank,
   patchKnowledgeBank,
+  promoteGate1,
   type KnowledgeBankResponse,
 } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
 import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
 import { buildUserAddedFactPayload } from "@/lib/knowledge-bank-view";
+import {
+  buildGate1LayoutView,
+  buildGate1ReviewClusters,
+  type Gate1ReviewClusterId,
+} from "@/lib/knowledge-bank-gate1-layout";
 import { useReportSubpathGuard } from "@/lib/report-subpath-guard";
 
 type FactsReportPageProps = {
@@ -34,6 +40,9 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [reviewedClusterIds, setReviewedClusterIds] = useState<Set<Gate1ReviewClusterId>>(new Set());
+  const [reviewingClusterId, setReviewingClusterId] = useState<Gate1ReviewClusterId | null>(null);
 
   const loadKnowledgeBank = useCallback(async () => {
     const bank = await getKnowledgeBank(reportId);
@@ -86,9 +95,15 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     return bank;
   };
 
+  const resolveSaveErrorMessage = (patchError: unknown, fallback: string) =>
+    patchError instanceof ApiClientError
+      ? resolveFriendlyApiErrorMessage(patchError, fallback)
+      : fallback;
+
   const handleSaveFact = async (factKey: string, value: string) => {
     setSaving(true);
     setConfirmError(null);
+    setSaveError(null);
     try {
       await patchKnowledgeBank(reportId, {
         facts: {
@@ -100,11 +115,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
       });
       await refreshAfterPatch();
     } catch (patchError) {
-      setError(
-        patchError instanceof ApiClientError
-          ? patchError
-          : new ApiClientError(500, "Failed to save fact."),
-      );
+      setSaveError(resolveSaveErrorMessage(patchError, "Failed to save fact."));
     } finally {
       setSaving(false);
     }
@@ -113,17 +124,14 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
   const handleResolveConflict = async (factKey: string, resolvedValue: unknown) => {
     setSaving(true);
     setConfirmError(null);
+    setSaveError(null);
     try {
       await patchKnowledgeBank(reportId, {
         conflict_resolutions: [{ fact_key: factKey, resolved_value: resolvedValue }],
       });
       await refreshAfterPatch();
     } catch (patchError) {
-      setError(
-        patchError instanceof ApiClientError
-          ? patchError
-          : new ApiClientError(500, "Failed to save conflict resolution."),
-      );
+      setSaveError(resolveSaveErrorMessage(patchError, "Failed to save conflict resolution."));
     } finally {
       setSaving(false);
     }
@@ -132,6 +140,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
   const handleAddFact = async (label: string, value: string, sourceLabel: string) => {
     setSaving(true);
     setConfirmError(null);
+    setSaveError(null);
     const factKey = `user_fact_${Date.now()}`;
     try {
       await patchKnowledgeBank(reportId, {
@@ -151,11 +160,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
         },
       });
     } catch (patchError) {
-      setError(
-        patchError instanceof ApiClientError
-          ? patchError
-          : new ApiClientError(500, "Failed to add fact."),
-      );
+      setSaveError(resolveSaveErrorMessage(patchError, "Failed to add fact."));
     } finally {
       setSaving(false);
     }
@@ -164,6 +169,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
   const handleResolveClientConflict = async (factKeys: string[], resolvedValue: string) => {
     setSaving(true);
     setConfirmError(null);
+    setSaveError(null);
     try {
       const facts: Record<string, { value: string; confirmed: boolean }> = {};
       for (const factKey of factKeys) {
@@ -172,17 +178,57 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
       await patchKnowledgeBank(reportId, { facts });
       await refreshAfterPatch();
     } catch (patchError) {
-      setError(
-        patchError instanceof ApiClientError
-          ? patchError
-          : new ApiClientError(500, "Failed to save conflict resolution."),
-      );
+      setSaveError(resolveSaveErrorMessage(patchError, "Failed to save conflict resolution."));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleConfirm = async () => {
+  const handleClusterReview = async (clusterId: Gate1ReviewClusterId) => {
+    if (!knowledgeBank) {
+      return;
+    }
+
+    setReviewingClusterId(clusterId);
+    setConfirmError(null);
+
+    try {
+      const latest = await getKnowledgeBank(reportId);
+      const layout = buildGate1LayoutView(latest);
+      const cluster = buildGate1ReviewClusters(layout).find((entry) => entry.clusterId === clusterId);
+      if (!cluster) {
+        return;
+      }
+
+      const rawFacts = (latest.knowledge_bank_json?.facts ?? latest.facts) as Record<string, unknown>;
+      if (cluster.needsPromotionKeys.length > 0) {
+        const promoteFactKeys = cluster.needsPromotionKeys.map((factKey) => {
+          const raw = rawFacts[factKey] as Record<string, unknown> | undefined;
+          return {
+            fact_key: factKey,
+            confirmed_value_snapshot: raw?.value ?? null,
+          };
+        });
+        await promoteGate1(reportId, {
+          promote_fact_keys: promoteFactKeys,
+          cluster_id: clusterId,
+        });
+        await refreshAfterPatch();
+      }
+
+      setReviewedClusterIds((current) => new Set([...current, clusterId]));
+    } catch (reviewError) {
+      setConfirmError(
+        reviewError instanceof ApiClientError
+          ? resolveFriendlyApiErrorMessage(reviewError, "Failed to save cluster review. Please try again.")
+          : "Failed to save cluster review. Please try again.",
+      );
+    } finally {
+      setReviewingClusterId(null);
+    }
+  };
+
+  const handleContinue = async () => {
     if (!knowledgeBank) {
       return;
     }
@@ -244,11 +290,16 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
         saving={saving}
         confirming={confirming}
         confirmError={confirmError}
+        saveError={saveError}
+        onDismissSaveError={() => setSaveError(null)}
+        reviewedClusterIds={reviewedClusterIds}
+        reviewingClusterId={reviewingClusterId}
         onSaveFact={handleSaveFact}
         onResolveConflict={handleResolveConflict}
         onResolveClientConflict={handleResolveClientConflict}
         onAddFact={handleAddFact}
-        onConfirm={handleConfirm}
+        onClusterReview={handleClusterReview}
+        onContinue={handleContinue}
       />
     </section>
   );

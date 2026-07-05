@@ -330,7 +330,13 @@ export const GATE1_LABEL = {
   ALSO_FOUND_IN: "Also found in:",
   ROWS: (count: number) => (count === 1 ? "1 item" : `${count} items`),
   SEARCH_PLACEHOLDER: "Search facts…",
-  STICKY_CONFIRM_HINT: "Resolve all conflicts before confirming.",
+  STICKY_CONFIRM_HINT: "Resolve all conflicts before continuing.",
+  CLUSTER_REVIEWED: "Reviewed",
+  CLUSTER_REVIEW_CTA: "I've reviewed this",
+  CLUSTER_REVIEWING: "Saving review…",
+  CLUSTER_NEEDS_PROMOTION: "Some items need your confirmation before they can be cited.",
+  CONTINUE_TO_QUESTIONS: "Continue to missing questions",
+  CONTINUE_TO_QUESTIONS_HINT: "Review each group above before continuing.",
 } as const;
 
 /** Screen 7 — Gate 2 missing questions (ME_MODULE_REPORTS_NGO_UI.html). */

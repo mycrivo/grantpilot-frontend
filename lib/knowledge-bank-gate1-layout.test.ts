@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildFinancialTable,
   buildGate1LayoutView,
+  buildGate1ReviewClusters,
   buildIndicatorTable,
   categorizeFactSection,
   dedupeFactsForDegraded,
@@ -18,6 +19,8 @@ function fact(overrides: Partial<NormalizedFact> & Pick<NormalizedFact, "key" | 
     displayText: `${overrides.label}: ${value}`,
     sourceLabel: overrides.sourceLabel ?? "doc-a",
     confirmed: overrides.confirmed ?? false,
+    verificationStatus: overrides.verificationStatus ?? null,
+    needsPromotion: overrides.needsPromotion ?? false,
     ...overrides,
   };
 }
@@ -134,5 +137,32 @@ describe("buildGate1LayoutView", () => {
     expect(view.rawFactCount).toBe(3);
     expect(view.displayFactCount).toBe(2);
     expect(view.isDegraded).toBe(true);
+  });
+});
+
+describe("buildGate1ReviewClusters", () => {
+  it("groups layout sections into review clusters with promotion keys", () => {
+    const view = buildGate1LayoutView({
+      donor_report_id: "report-1",
+      facts: {
+        "grant.reference": { value: "BL-001", semantic_label: "Grant reference", confirmed: true },
+        "indicators.op1_1.ar1_actual": {
+          value: "684",
+          semantic_label: "OP1.1 actual",
+          confirmed: true,
+          verification_status: "unverified",
+        },
+      },
+      conflicts: [],
+      gate1_confirmed_at: null,
+      ready_for_gate1: true,
+    });
+
+    const clusters = buildGate1ReviewClusters(view);
+    expect(clusters.map((cluster) => cluster.clusterId)).toEqual(
+      expect.arrayContaining(["programme_summary", "indicators"]),
+    );
+    const indicators = clusters.find((cluster) => cluster.clusterId === "indicators");
+    expect(indicators?.needsPromotionKeys).toContain("indicators.op1_1.ar1_actual");
   });
 });

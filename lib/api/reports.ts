@@ -121,6 +121,25 @@ export type Gate1ConfirmRequest = {
   knowledge_bank_json: Record<string, unknown>;
 };
 
+export type Gate1PromoteFactEntry = {
+  fact_key: string;
+  confirmed_value_snapshot: unknown;
+};
+
+export type Gate1PromoteRequest = {
+  promote_fact_keys: Gate1PromoteFactEntry[];
+  cluster_id?: string | null;
+};
+
+export type Gate1PromoteResponse = {
+  donor_report_id: string;
+  promoted_fact_keys: string[];
+  rejected_promotions: Array<Record<string, unknown>>;
+  unverified_excluded_count: number;
+  cluster_id?: string | null;
+  knowledge_bank_json?: Record<string, unknown>;
+};
+
 export type Gate1ConfirmResponse = {
   donor_report_id: string;
   knowledge_bank_json: Record<string, unknown>;
@@ -134,15 +153,24 @@ export type GapCheckMissingItem = {
   label: string;
   prompt: string;
   severity: "required" | "recommended";
-  section_key: string | null;
+  section_key?: string | null;
+  section_label?: string | null;
+  question?: string | null;
+  rationale?: string | null;
+  owner?: string | null;
+  requirement_type?: string | null;
+  suggested_action?: "confirm_existing" | "provide" | "skip" | null;
+  confirm_existing_excerpt?: string | null;
 };
 
 export type GapCheckResponse = {
   donor_report_id: string;
-  readiness_score: number;
+  open_items_count: number;
   ready_for_gate2: boolean;
   missing_items: GapCheckMissingItem[];
   gate2_confirmed_at: string | null;
+  readiness_basis?: string | null;
+  readiness_message?: string | null;
 };
 
 export type GapAnswerInput = {
@@ -407,6 +435,14 @@ export function getKnowledgeBank(reportId: string) {
 export function patchKnowledgeBank(reportId: string, body: PatchKnowledgeBankRequest) {
   return apiRequest<KnowledgeBankResponse>(`${reportPath(reportId)}/knowledge-bank`, {
     method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** §12.5a POST /api/reports/{id}/knowledge-bank/gate1/promote */
+export function promoteGate1(reportId: string, body: Gate1PromoteRequest) {
+  return apiRequest<Gate1PromoteResponse>(`${reportPath(reportId)}/knowledge-bank/gate1/promote`, {
+    method: "POST",
     body: JSON.stringify(body),
   });
 }

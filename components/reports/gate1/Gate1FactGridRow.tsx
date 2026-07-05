@@ -71,6 +71,11 @@ export function Gate1FactGridRow({ fact, saving, compact = false, onSave }: Gate
             {GATE1_LABEL.FACT_CONFIRMED}
           </span>
         ) : null}
+        {fact.needsPromotion ? (
+          <span className="rounded-full border border-brand-warning/40 bg-brand-warning/10 px-2 py-0.5 text-xs font-semibold text-brand-warning">
+            Needs review
+          </span>
+        ) : null}
         {editing ? (
           <>
             <button

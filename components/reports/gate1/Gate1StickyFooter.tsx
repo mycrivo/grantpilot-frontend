@@ -10,7 +10,9 @@ type Gate1StickyFooterProps = {
   disabled: boolean;
   unresolvedCount: number;
   confirmError: string | null;
-  onConfirm: () => Promise<void>;
+  continueLabel: string;
+  continueHint?: string | null;
+  onContinue: () => Promise<void>;
   children?: ReactNode;
 };
 
@@ -20,7 +22,9 @@ export function Gate1StickyFooter({
   disabled,
   unresolvedCount,
   confirmError,
-  onConfirm,
+  continueLabel,
+  continueHint,
+  onContinue,
   children,
 }: Gate1StickyFooterProps) {
   return (
@@ -30,6 +34,7 @@ export function Gate1StickyFooter({
           {GATE1_LABEL.NEEDS_DECISION_COUNT(unresolvedCount)}
         </p>
       ) : null}
+      {continueHint ? <p className="mb-2 text-sm text-secondary">{continueHint}</p> : null}
       {confirmError ? (
         <p className="mb-2 rounded-[8px] border border-brand-error/30 bg-brand-error/5 px-3 py-2 text-sm text-brand-error">
           {confirmError}
@@ -40,9 +45,9 @@ export function Gate1StickyFooter({
           type="button"
           className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
           disabled={confirming || saving || disabled}
-          onClick={() => void onConfirm()}
+          onClick={() => void onContinue()}
         >
-          {confirming ? GATE1_LABEL.CONFIRMING : GATE1_LABEL.CONFIRM_FACTS}
+          {confirming ? GATE1_LABEL.CONFIRMING : continueLabel}
         </button>
         {children}
       </div>

@@ -10,6 +10,7 @@ type Gate2QuestionItemProps = {
   saving: boolean;
   onDraftChange: (itemKey: string, answerText: string) => void;
   onSaveAnswer: (itemKey: string, answerText: string) => Promise<void>;
+  onConfirmExisting: (itemKey: string) => Promise<void>;
   onSkip: (itemKey: string) => Promise<void>;
 };
 
@@ -19,6 +20,7 @@ export function Gate2QuestionItem({
   saving,
   onDraftChange,
   onSaveAnswer,
+  onConfirmExisting,
   onSkip,
 }: Gate2QuestionItemProps) {
   const statusLabel =
@@ -28,23 +30,57 @@ export function Gate2QuestionItem({
         ? GATE2_LABEL.SKIPPED
         : null;
 
+  const showConfirmExisting =
+    question.suggestedAction === "confirm_existing" && question.confirmExistingExcerpt;
+
   return (
     <article className="rounded-[12px] border border-brand-border bg-brand-card-bg p-4">
-      <h2 className="text-base font-semibold text-brand-text-primary">{question.question}</h2>
+      <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
+        {question.sectionTag}
+      </p>
+      <h2 className="mt-1 text-base font-semibold text-brand-text-primary">{question.question}</h2>
 
-      <div className="mt-2 space-y-1 text-sm text-secondary">
-        <p>{question.rationale}</p>
-        <p className="font-medium text-brand-text-primary">{question.sectionTag}</p>
-      </div>
+      {question.rationale ? (
+        <p className="mt-2 text-sm text-secondary">{question.rationale}</p>
+      ) : null}
 
-      <textarea
-        value={state.answerText}
-        onChange={(event) => onDraftChange(question.itemKey, event.target.value)}
-        placeholder={GATE2_LABEL.ANSWER_PLACEHOLDER}
-        aria-label={`Answer: ${question.question}`}
-        disabled={state.disposition === "skipped"}
-        className="mt-4 min-h-[120px] w-full rounded-[8px] border border-brand-border px-3 py-3 text-sm outline-none focus:border-brand-primary disabled:bg-brand-divider disabled:text-secondary"
-      />
+      {showConfirmExisting ? (
+        <div className="mt-4 rounded-[8px] border border-brand-border bg-brand-primary/5 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
+            On file
+          </p>
+          <p className="mt-1 text-sm text-brand-text-primary">{question.confirmExistingExcerpt}</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={saving}
+              onClick={() => void onConfirmExisting(question.itemKey)}
+            >
+              Yes, use this
+            </button>
+            <button
+              type="button"
+              className="text-sm font-semibold text-brand-primary hover:underline disabled:opacity-60"
+              disabled={saving}
+              onClick={() => onDraftChange(question.itemKey, "")}
+            >
+              Provide different value
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {!showConfirmExisting || state.answerText || state.disposition === "answered" ? (
+        <textarea
+          value={state.answerText}
+          onChange={(event) => onDraftChange(question.itemKey, event.target.value)}
+          placeholder={GATE2_LABEL.ANSWER_PLACEHOLDER}
+          aria-label={`Answer: ${question.question}`}
+          disabled={state.disposition === "skipped"}
+          className="mt-4 min-h-[120px] w-full rounded-[8px] border border-brand-border px-3 py-3 text-sm outline-none focus:border-brand-primary disabled:bg-brand-divider disabled:text-secondary"
+        />
+      ) : null}
 
       {statusLabel ? <p className="mt-2 text-sm font-medium text-brand-primary">{statusLabel}</p> : null}
 

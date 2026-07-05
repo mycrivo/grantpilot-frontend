@@ -13,6 +13,8 @@ export type NormalizedFact = {
   displayText: string;
   sourceLabel: string;
   confirmed: boolean;
+  verificationStatus: string | null;
+  needsPromotion: boolean;
 };
 
 export type NormalizedConflictValue = {
@@ -82,6 +84,9 @@ export function normalizeFacts(
       const label = String(fact.semantic_label ?? key);
       const unit = typeof fact.unit === "string" ? fact.unit : null;
       const value = fact.value;
+      const verificationStatus =
+        typeof fact.verification_status === "string" ? fact.verification_status : null;
+      const needsPromotion = verificationStatus === "unverified";
 
       return {
         key,
@@ -91,6 +96,8 @@ export function normalizeFacts(
         displayText: `${label}: ${formatFactValue(value, unit)}`,
         sourceLabel: String(fact.source_label ?? "Unknown source"),
         confirmed: Boolean(fact.confirmed),
+        verificationStatus,
+        needsPromotion,
       };
     });
 }

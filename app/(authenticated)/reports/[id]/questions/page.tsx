@@ -21,8 +21,10 @@ import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
 import { resolveReportDisplayFunder } from "@/lib/report-display-names";
 import {
   buildAnswerPatch,
+  buildConfirmExistingPatch,
   buildSkipPatch,
   buildSubmitResponses,
+  groupGapQuestions,
   normalizeGapQuestions,
   type GapQuestionState,
 } from "@/lib/gap-view";
@@ -107,6 +109,8 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
     return normalizeGapQuestions(gapCheck, funderName);
   }, [gapCheck, funderName]);
 
+  const groups = useMemo(() => groupGapQuestions(questions), [questions]);
+
   const handleDraftChange = (itemKey: string, answerText: string) => {
     setStates((current) => ({
       ...current,
@@ -137,6 +141,30 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
         patchError instanceof ApiClientError
           ? patchError
           : new ApiClientError(500, "Failed to save answer."),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmExisting = async (itemKey: string) => {
+    setSaving(true);
+    setContinueError(null);
+    try {
+      await patchGapAnswers(reportId, buildConfirmExistingPatch(itemKey));
+      setStates((current) => ({
+        ...current,
+        [itemKey]: {
+          disposition: "answered",
+          answerText: "Yes, use the information on file.",
+          skipReason: null,
+        },
+      }));
+    } catch (patchError) {
+      setError(
+        patchError instanceof ApiClientError
+          ? patchError
+          : new ApiClientError(500, "Failed to confirm existing data."),
       );
     } finally {
       setSaving(false);
@@ -214,6 +242,8 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
       <ReportsFunnelHeader />
       <ReportsJourneySteps current="questions" />
       <Gate2AnswerQuestions
+        gapCheck={gapCheck}
+        groups={groups}
         questions={questions}
         states={states}
         saving={saving}
@@ -221,6 +251,7 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
         continueError={continueError}
         onDraftChange={handleDraftChange}
         onSaveAnswer={handleSaveAnswer}
+        onConfirmExisting={handleConfirmExisting}
         onSkip={handleSkip}
         onContinue={handleContinue}
       />

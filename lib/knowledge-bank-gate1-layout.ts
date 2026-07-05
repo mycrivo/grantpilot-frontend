@@ -475,3 +475,137 @@ export function isClientConflictResolved(conflict: ClientPromotedConflict, resol
 export function clientConflictValuesMatch(left: unknown, right: unknown): boolean {
   return valuesEqual(left, right);
 }
+
+export type Gate1ReviewClusterId =
+  | "programme_summary"
+  | "indicators"
+  | "financials"
+  | "objectives_and_reporting"
+  | "other";
+
+export type Gate1ReviewCluster = {
+  clusterId: Gate1ReviewClusterId;
+  title: string;
+  description: string;
+  factKeys: string[];
+  needsPromotionKeys: string[];
+  hasUnverified: boolean;
+  hasDegraded: boolean;
+  factCount: number;
+};
+
+function collectFactKeys(sections: Gate1Sections, clusterId: Gate1ReviewClusterId): string[] {
+  const keys: string[] = [];
+  const push = (facts: DisplayFact[]) => {
+    for (const fact of facts) {
+      keys.push(fact.key);
+      keys.push(...fact.collapsedFactKeys);
+    }
+  };
+
+  switch (clusterId) {
+    case "programme_summary":
+      push(sections.programmeSummary);
+      break;
+    case "indicators":
+      push(sections.indicators);
+      for (const row of sections.indicatorTable) {
+        for (const cell of [row.y1Target, row.y1Actual, row.endlineTarget]) {
+          if (cell) {
+            keys.push(cell.key, ...cell.collapsedFactKeys);
+          }
+        }
+      }
+      break;
+    case "financials":
+      push(sections.financials);
+      for (const row of sections.financialTable) {
+        for (const cell of [row.budget, row.actual]) {
+          if (cell) {
+            keys.push(cell.key, ...cell.collapsedFactKeys);
+          }
+        }
+      }
+      break;
+    case "objectives_and_reporting":
+      push(sections.objectives);
+      push(sections.reporting);
+      break;
+    case "other":
+      push(sections.other);
+      break;
+    default:
+      break;
+  }
+
+  return [...new Set(keys)];
+}
+
+export function buildGate1ReviewClusters(layout: Gate1LayoutView): Gate1ReviewCluster[] {
+  const clusterMeta: Array<{
+    clusterId: Gate1ReviewClusterId;
+    title: string;
+    description: string;
+  }> = [
+    {
+      clusterId: "programme_summary",
+      title: "Programme summary",
+      description: "Grant reference, reporting period, and programme context from your documents.",
+    },
+    {
+      clusterId: "indicators",
+      title: "Indicators",
+      description: "Targets and actuals extracted from your logframe and indicator files.",
+    },
+    {
+      clusterId: "financials",
+      title: "Financials by output",
+      description: "Budget and spend figures grouped by programme output.",
+    },
+    {
+      clusterId: "objectives_and_reporting",
+      title: "Objectives and reporting",
+      description: "Outcome objectives and funder reporting obligations.",
+    },
+    {
+      clusterId: "other",
+      title: "Other details",
+      description: "Additional facts that did not fit the sections above.",
+    },
+  ];
+
+  const allFacts = [
+    ...layout.sections.programmeSummary,
+    ...layout.sections.indicators,
+    ...layout.sections.financials,
+    ...layout.sections.objectives,
+    ...layout.sections.reporting,
+    ...layout.sections.other,
+    ...layout.sections.indicatorTable.flatMap((row) =>
+      [row.y1Target, row.y1Actual, row.endlineTarget].filter(Boolean),
+    ),
+    ...layout.sections.financialTable.flatMap((row) => [row.budget, row.actual].filter(Boolean)),
+  ] as DisplayFact[];
+
+  const factByKey = new Map(allFacts.map((fact) => [fact.key, fact]));
+
+  return clusterMeta
+    .map(({ clusterId, title, description }) => {
+      const factKeys = collectFactKeys(layout.sections, clusterId);
+      const clusterFacts = factKeys
+        .map((key) => factByKey.get(key))
+        .filter((fact): fact is DisplayFact => Boolean(fact));
+      const needsPromotionKeys = clusterFacts.filter((fact) => fact.needsPromotion).map((fact) => fact.key);
+      return {
+        clusterId,
+        title,
+        description,
+        factKeys,
+        needsPromotionKeys,
+        hasUnverified: needsPromotionKeys.length > 0,
+        hasDegraded: layout.isDegraded && clusterFacts.some((fact) => fact.needsPromotion),
+        factCount: factKeys.length,
+      };
+    })
+    .filter((cluster) => cluster.factCount > 0);
+}

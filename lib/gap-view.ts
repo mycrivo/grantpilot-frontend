@@ -9,8 +9,18 @@ export type NormalizedGapQuestion = {
   itemKey: string;
   question: string;
   rationale: string;
+  sectionLabel: string;
   sectionTag: string;
   severity: GapCheckMissingItem["severity"];
+  requirementType: string | null;
+  suggestedAction: "confirm_existing" | "provide" | "skip" | null;
+  confirmExistingExcerpt: string | null;
+};
+
+export type GapQuestionGroup = {
+  key: string;
+  title: string;
+  questions: NormalizedGapQuestion[];
 };
 
 export type GapQuestionDisposition = "unanswered" | "answered" | "skipped";
@@ -19,6 +29,13 @@ export type GapQuestionState = {
   disposition: GapQuestionDisposition;
   answerText: string;
   skipReason: "not_applicable" | "cannot_provide" | null;
+};
+
+const GROUP_TITLES: Record<string, string> = {
+  data: "Data we need",
+  confirm_existing: "Confirm what's on file",
+  provide: "Data we need",
+  skip: "Optional",
 };
 
 export function shouldRenderGate2(gapCheck: GapCheckResponse): boolean {
@@ -57,12 +74,50 @@ export function normalizeGapQuestions(
       itemKey: item.item_key,
       question,
       rationale,
+      sectionLabel,
       sectionTag: funderName.trim()
-        ? `${funderName.trim()}${sectionLabel ? ` · ${sectionLabel}` : ""}`
-        : sectionLabel || "General",
+        ? `${funderName.trim()} · ${sectionLabel}`
+        : sectionLabel,
       severity: item.severity,
+      requirementType:
+        typeof raw.requirement_type === "string" ? raw.requirement_type : null,
+      suggestedAction:
+        raw.suggested_action === "confirm_existing" ||
+        raw.suggested_action === "provide" ||
+        raw.suggested_action === "skip"
+          ? raw.suggested_action
+          : null,
+      confirmExistingExcerpt:
+        typeof raw.confirm_existing_excerpt === "string"
+          ? raw.confirm_existing_excerpt
+          : null,
     };
   });
+}
+
+export function groupGapQuestions(questions: NormalizedGapQuestion[]): GapQuestionGroup[] {
+  const buckets = new Map<string, NormalizedGapQuestion[]>();
+
+  for (const question of questions) {
+    const groupKey =
+      question.suggestedAction === "confirm_existing"
+        ? "confirm_existing"
+        : question.requirementType === "data" || question.suggestedAction === "provide"
+          ? "data"
+          : "other";
+    const list = buckets.get(groupKey) ?? [];
+    list.push(question);
+    buckets.set(groupKey, list);
+  }
+
+  const order = ["confirm_existing", "data", "other"];
+  return order
+    .filter((key) => buckets.has(key))
+    .map((key) => ({
+      key,
+      title: GROUP_TITLES[key] ?? "Other questions",
+      questions: buckets.get(key) ?? [],
+    }));
 }
 
 export function buildAnswerPatch(itemKey: string, answerText: string) {
@@ -75,6 +130,10 @@ export function buildAnswerPatch(itemKey: string, answerText: string) {
       },
     },
   };
+}
+
+export function buildConfirmExistingPatch(itemKey: string) {
+  return buildAnswerPatch(itemKey, "Yes, use the information on file.");
 }
 
 export function buildSkipPatch(itemKey: string, skipReason: "not_applicable" | "cannot_provide" = "cannot_provide") {
