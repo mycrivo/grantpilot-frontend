@@ -32,7 +32,6 @@ export function ProposalExtractionCheckpoint({
   const displaySource: NormalizedUnreadableSource = {
     sourceDocumentId: checkpoint.failedDocumentId,
     sourceLabel: checkpoint.originalFilename,
-    code: checkpoint.degradedCode ?? "DEGRADED_EXTRACTION_TIMEOUT",
     explanation: "",
   };
   const filename = resolveUnreadableSourceDisplayLabel(displaySource, documentFilenameById);
