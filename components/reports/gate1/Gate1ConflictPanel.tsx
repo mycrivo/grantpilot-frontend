@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { GATE1_LABEL } from "@/components/reports/report-status-labels";
-import type { NormalizedConflict } from "@/lib/knowledge-bank-view";
+import type { NormalizedConflict, NormalizedConflictValue } from "@/lib/knowledge-bank-view";
 import { formatFactValue } from "@/lib/knowledge-bank-view";
 
 type Gate1ConflictPanelProps = {
@@ -19,10 +19,28 @@ function valuesMatch(left: unknown, right: unknown): boolean {
 export function Gate1ConflictPanel({ conflict, saving, onResolve }: Gate1ConflictPanelProps) {
   const [showCustom, setShowCustom] = useState(false);
   const [customValue, setCustomValue] = useState("");
+  const [entryContext, setEntryContext] = useState<string | null>(null);
 
-  const handleSelect = async (value: unknown) => {
+  const openExplicitEntry = (option?: NormalizedConflictValue) => {
+    setShowCustom(true);
+    setCustomValue("");
+    if (option?.provenanceExcerpt) {
+      setEntryContext(`From ${option.sourceLabel}: ${option.provenanceExcerpt}`);
+    } else if (option) {
+      setEntryContext(`From ${option.sourceLabel}. ${GATE1_LABEL.CONFLICT_AMBIGUOUS_HINT}`);
+    } else {
+      setEntryContext(GATE1_LABEL.CONFLICT_ENTER_HELPER);
+    }
+  };
+
+  const handleSelect = async (option: NormalizedConflictValue) => {
+    if (option.requiresExplicitEntry) {
+      openExplicitEntry(option);
+      return;
+    }
     setShowCustom(false);
-    await onResolve(conflict.factKey, value);
+    setEntryContext(null);
+    await onResolve(conflict.factKey, option.value);
   };
 
   const handleCustomSave = async () => {
@@ -32,6 +50,7 @@ export function Gate1ConflictPanel({ conflict, saving, onResolve }: Gate1Conflic
     await onResolve(conflict.factKey, customValue.trim());
     setShowCustom(false);
     setCustomValue("");
+    setEntryContext(null);
   };
 
   return (
@@ -47,14 +66,16 @@ export function Gate1ConflictPanel({ conflict, saving, onResolve }: Gate1Conflic
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-brand-text-primary">{GATE1_LABEL.CONFLICT_HEADING}</h2>
           <p className="mt-1 text-sm text-secondary">{GATE1_LABEL.CONFLICT_SUBHEADING}</p>
-          {conflict.annotation ? <p className="mt-2 text-sm text-secondary">{conflict.annotation}</p> : null}
+          <p className="mt-2 text-sm text-secondary">{conflict.explanation}</p>
         </div>
       </div>
 
       <div className="mt-4 space-y-2">
         {conflict.values.map((option, index) => {
           const isSelected =
-            conflict.isResolved && valuesMatch(conflict.resolvedValue, option.value);
+            conflict.isResolved &&
+            !option.requiresExplicitEntry &&
+            valuesMatch(conflict.resolvedValue, option.value);
 
           return (
             <button
@@ -68,7 +89,7 @@ export function Gate1ConflictPanel({ conflict, saving, onResolve }: Gate1Conflic
                   ? "border-brand-primary bg-brand-primary/5"
                   : "border-brand-border bg-brand-card-bg hover:border-brand-primary/40",
               ].join(" ")}
-              onClick={() => void handleSelect(option.value)}
+              onClick={() => void handleSelect(option)}
             >
               <span className="font-semibold text-brand-text-primary">{option.displayText}</span>
               <span className="mt-1 text-sm text-secondary">{option.sourceLabel}</span>
@@ -80,28 +101,35 @@ export function Gate1ConflictPanel({ conflict, saving, onResolve }: Gate1Conflic
           type="button"
           className="w-full rounded-[8px] border border-dashed border-brand-border bg-brand-card-bg px-4 py-3 text-left text-sm font-semibold text-brand-primary hover:border-brand-primary"
           disabled={saving}
-          onClick={() => setShowCustom((value) => !value)}
+          onClick={() => openExplicitEntry()}
         >
           {GATE1_LABEL.CONFLICT_ENTER_OTHER}
         </button>
 
         {showCustom ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={customValue}
-              onChange={(event) => setCustomValue(event.target.value)}
-              placeholder={GATE1_LABEL.CONFLICT_ENTER_OTHER_PROMPT}
-              className="min-w-[12rem] flex-1 rounded-[8px] border border-brand-border px-3 py-2 text-sm outline-none focus:border-brand-primary"
-            />
-            <button
-              type="button"
-              className="btn-primary text-sm disabled:opacity-60"
-              disabled={saving || !customValue.trim()}
-              onClick={() => void handleCustomSave()}
-            >
-              {saving ? GATE1_LABEL.SAVING : GATE1_LABEL.FACT_SAVE}
-            </button>
+          <div className="space-y-2 rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-3">
+            <p className="text-sm font-semibold text-brand-text-primary">
+              {GATE1_LABEL.CONFLICT_ENTER_TITLE}
+            </p>
+            {entryContext ? <p className="text-sm text-secondary">{entryContext}</p> : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={customValue}
+                onChange={(event) => setCustomValue(event.target.value)}
+                placeholder={GATE1_LABEL.CONFLICT_ENTER_OTHER_PROMPT}
+                className="min-w-[12rem] flex-1 rounded-[8px] border border-brand-border px-3 py-2 text-sm outline-none focus:border-brand-primary"
+                disabled={saving}
+              />
+              <button
+                type="button"
+                className="btn-primary text-sm disabled:opacity-60"
+                disabled={saving || !customValue.trim()}
+                onClick={() => void handleCustomSave()}
+              >
+                {saving ? GATE1_LABEL.SAVING : GATE1_LABEL.FACT_SAVE}
+              </button>
+            </div>
           </div>
         ) : null}
 

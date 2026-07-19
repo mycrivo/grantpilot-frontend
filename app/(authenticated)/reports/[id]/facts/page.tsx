@@ -18,7 +18,10 @@ import {
   type KnowledgeBankResponse,
 } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
-import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
+import {
+  resolveFriendlyApiErrorMessage,
+  resolveGate1SaveErrorMessage,
+} from "@/lib/me-error-messages";
 import { buildUserAddedFactPayload } from "@/lib/knowledge-bank-view";
 import {
   buildGate1LayoutView,
@@ -105,7 +108,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
 
   const resolveSaveErrorMessage = (patchError: unknown, fallback: string) =>
     patchError instanceof ApiClientError
-      ? resolveFriendlyApiErrorMessage(patchError, fallback)
+      ? resolveGate1SaveErrorMessage(patchError)
       : fallback;
 
   const handleSaveFact = async (factKey: string, value: string) => {
