@@ -1723,6 +1723,9 @@ Errors: 401 · 403 · 404 · 409 `GATE_NOT_SATISFIED` · 409 `EXPORT_NOT_READY` 
 | `FILE_TOO_LARGE` | 413 | Upload exceeds limit |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | MIME not allowed |
 | `UPGRADE_REQUIRED` | 403 | Free/Growth M&E entry (§10.3) |
+| `KB_PATCH_VALIDATION_FAILED` | 422 | Gate 1 PATCH validation (unknown conflict key, missing materializable fact entry, empty body) |
+| `KB_CONFLICT_RESOLUTION_VALUE_REQUIRED` | 422 | Conflict resolution `resolved_value` is null or blank (D-059) |
+| `USE_GATE1_CONFIRM_ENDPOINT` | 422 | `confirm_gate1` sent on PATCH; use POST §12.5a |
 
 Quota errors use existing `QUOTA_EXCEEDED` with `details.entitlement`: `reports` | `report_exports`.
 

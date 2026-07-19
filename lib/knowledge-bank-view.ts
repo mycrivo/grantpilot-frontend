@@ -2,6 +2,7 @@
  * Normalizes §12.4 knowledge-bank payloads for Gate 1 UI (DB_FIELD_CONTRACT §2.6).
  */
 
+import { GATE1_LABEL } from "@/components/reports/report-status-labels";
 import type { KnowledgeBankResponse, UnreadableSource } from "@/lib/api/reports";
 import { formatUnreadableSourceExplanation } from "@/lib/unreadable-source-labels";
 
@@ -84,12 +85,18 @@ export function composeConflictExplanation(
         ? sources[0]
         : `${sources.slice(0, -1).join(", ")} and ${sources[sources.length - 1]}`;
 
-  const hasAmbiguous = values.some((v) => v.requiresExplicitEntry);
+  const ambiguousCount = values.filter((v) => v.requiresExplicitEntry).length;
   const base = `We found more than one value for ${factLabel} in ${sourcePhrase}.`;
-  if (hasAmbiguous) {
+  if (ambiguousCount === 0) {
+    return `${base} Choose which value this report should use.`;
+  }
+  if (ambiguousCount === values.length) {
+    return `${base} None of the sources give a clear value — enter the correct one.`;
+  }
+  if (ambiguousCount === 1) {
     return `${base} One source mentions a value that isn't specific enough to use — choose a clear value or enter the correct one.`;
   }
-  return `${base} Choose which value this report should use.`;
+  return `${base} Some sources mention values that aren't specific enough to use — choose a clear value or enter the correct one.`;
 }
 
 export function normalizeConflicts(
@@ -118,7 +125,7 @@ export function normalizeConflicts(
         value,
         unit,
         displayText: requiresExplicitEntry
-          ? "This source does not give a clear value"
+          ? GATE1_LABEL.CONFLICT_AMBIGUOUS_LABEL
           : formatFactValue(value, unit),
         sourceLabel: String(valueRow.source_label ?? "Unknown source"),
         provenanceExcerpt,

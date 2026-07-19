@@ -3,6 +3,11 @@
 import { useState } from "react";
 
 import { GATE1_LABEL } from "@/components/reports/report-status-labels";
+import {
+  composeExplicitEntryContext,
+  nextExplicitEntryStateAfterSaveAttempt,
+  routeConflictCandidateSelection,
+} from "@/lib/gate1-conflict-routing";
 import type { NormalizedConflict, NormalizedConflictValue } from "@/lib/knowledge-bank-view";
 import { formatFactValue } from "@/lib/knowledge-bank-view";
 
@@ -24,33 +29,44 @@ export function Gate1ConflictPanel({ conflict, saving, onResolve }: Gate1Conflic
   const openExplicitEntry = (option?: NormalizedConflictValue) => {
     setShowCustom(true);
     setCustomValue("");
-    if (option?.provenanceExcerpt) {
-      setEntryContext(`From ${option.sourceLabel}: ${option.provenanceExcerpt}`);
-    } else if (option) {
-      setEntryContext(`From ${option.sourceLabel}. ${GATE1_LABEL.CONFLICT_AMBIGUOUS_HINT}`);
-    } else {
-      setEntryContext(GATE1_LABEL.CONFLICT_ENTER_HELPER);
-    }
+    setEntryContext(
+      composeExplicitEntryContext(
+        option
+          ? { sourceLabel: option.sourceLabel, provenanceExcerpt: option.provenanceExcerpt }
+          : undefined,
+      ),
+    );
   };
 
   const handleSelect = async (option: NormalizedConflictValue) => {
-    if (option.requiresExplicitEntry) {
+    const route = routeConflictCandidateSelection(option.value);
+    if (route.kind === "explicit_entry") {
       openExplicitEntry(option);
       return;
     }
     setShowCustom(false);
     setEntryContext(null);
-    await onResolve(conflict.factKey, option.value);
+    await onResolve(conflict.factKey, route.value);
   };
 
   const handleCustomSave = async () => {
     if (!customValue.trim()) {
       return;
     }
-    await onResolve(conflict.factKey, customValue.trim());
-    setShowCustom(false);
-    setCustomValue("");
-    setEntryContext(null);
+    const draft = customValue.trim();
+    try {
+      await onResolve(conflict.factKey, draft);
+      const next = nextExplicitEntryStateAfterSaveAttempt({ draft, saveSucceeded: true });
+      setShowCustom(next.showCustom);
+      setCustomValue(next.customValue);
+      if (next.entryContextCleared) {
+        setEntryContext(null);
+      }
+    } catch {
+      const next = nextExplicitEntryStateAfterSaveAttempt({ draft, saveSucceeded: false });
+      setShowCustom(next.showCustom);
+      setCustomValue(next.customValue);
+    }
   };
 
   return (
@@ -72,9 +88,10 @@ export function Gate1ConflictPanel({ conflict, saving, onResolve }: Gate1Conflic
 
       <div className="mt-4 space-y-2">
         {conflict.values.map((option, index) => {
+          const route = routeConflictCandidateSelection(option.value);
           const isSelected =
             conflict.isResolved &&
-            !option.requiresExplicitEntry &&
+            route.kind === "save" &&
             valuesMatch(conflict.resolvedValue, option.value);
 
           return (

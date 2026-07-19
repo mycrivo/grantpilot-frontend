@@ -8,6 +8,14 @@ import { ME_UPGRADE_REQUIRED } from "@/lib/me-enums";
 
 export const ME_GENERIC_ERROR_MESSAGE = "Something went wrong — please try again.";
 
+export const ME_401_MESSAGE = "Your session has expired. Sign in again to continue.";
+export const ME_5XX_SAVE_MESSAGE =
+  "We're having trouble saving right now. Please try again shortly.";
+export const ME_5XX_LOAD_MESSAGE =
+  "We're having trouble loading this right now. Please try again shortly.";
+
+export type ApiErrorSurface = "save" | "load";
+
 export const ME_ERROR_MESSAGE: Record<string, string> = {
   // API_CONTRACT.md §12.14
   REPORT_NOT_FOUND: "We couldn't find this report. Return to your reports and open it again.",
@@ -15,7 +23,9 @@ export const ME_ERROR_MESSAGE: Record<string, string> = {
   TEMPLATE_NOT_FOUND: "We could not find that funder template.",
   JOB_NOT_FOUND: "We could not find progress for this report.",
   SECTION_NOT_FOUND: "We could not find that report section.",
-  GATE_NOT_SATISFIED: "These project facts can't be edited right now. Refresh the page to see the latest version.",
+  // Gate-agnostic — used on Gates 1/2/3 continue and edit paths
+  GATE_NOT_SATISFIED:
+    "This step isn't available right now. Refresh the page to see the latest version.",
   EXPORT_NOT_READY: "Your report is not ready to download yet. Finish review first.",
   EXPORT_NOT_FOUND: "Your report is not ready to download yet. Finish review first.",
   FILE_TOO_LARGE: "That file is too large. Try a smaller file or compress it first.",
@@ -83,6 +93,7 @@ function resolveErrorCode(error?: ApiErrorLike | null): string | undefined {
 export function resolveFriendlyApiErrorMessage(
   error?: ApiErrorLike | ApiClientError | null,
   fallback: string = ME_GENERIC_ERROR_MESSAGE,
+  surface: ApiErrorSurface = "load",
 ): string {
   if (!error) {
     return fallback;
@@ -103,7 +114,7 @@ export function resolveFriendlyApiErrorMessage(
   }
 
   if (error.status === 401) {
-    return "Your session has expired. Sign in again to continue.";
+    return ME_401_MESSAGE;
   }
 
   if (error.status === 429) {
@@ -111,7 +122,7 @@ export function resolveFriendlyApiErrorMessage(
   }
 
   if (typeof error.status === "number" && error.status >= 500) {
-    return "We're having trouble saving right now. Please try again shortly.";
+    return surface === "save" ? ME_5XX_SAVE_MESSAGE : ME_5XX_LOAD_MESSAGE;
   }
 
   return fallback;
@@ -121,5 +132,5 @@ export function resolveFriendlyApiErrorMessage(
 export function resolveGate1SaveErrorMessage(
   error?: ApiErrorLike | ApiClientError | null,
 ): string {
-  return resolveFriendlyApiErrorMessage(error, ME_GENERIC_ERROR_MESSAGE);
+  return resolveFriendlyApiErrorMessage(error, ME_GENERIC_ERROR_MESSAGE, "save");
 }

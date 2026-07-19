@@ -31,7 +31,7 @@ function resolveMessage(error?: ApiErrorLike | null, fallbackMessage?: string, m
   }
 
   if (error) {
-    return resolveFriendlyApiErrorMessage(error, fallbackMessage);
+    return resolveFriendlyApiErrorMessage(error, fallbackMessage, "load");
   }
 
   return fallbackMessage ?? "Something went wrong. Please try again.";

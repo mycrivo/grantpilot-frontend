@@ -3,8 +3,15 @@
 import { useState } from "react";
 
 import { GATE1_LABEL } from "@/components/reports/report-status-labels";
+import {
+  composeExplicitEntryContext,
+  nextExplicitEntryStateAfterSaveAttempt,
+  routeClientConflictCandidateSelection,
+  routeConflictCandidateSelection,
+} from "@/lib/gate1-conflict-routing";
 import type { ClientPromotedConflict } from "@/lib/knowledge-bank-gate1-layout";
 import { clientConflictValuesMatch } from "@/lib/knowledge-bank-gate1-layout";
+import { isAmbiguousConflictValue } from "@/lib/knowledge-bank-view";
 
 type Gate1ClientConflictPanelProps = {
   conflict: ClientPromotedConflict;
@@ -19,21 +26,45 @@ export function Gate1ClientConflictPanel({
 }: Gate1ClientConflictPanelProps) {
   const [showCustom, setShowCustom] = useState(false);
   const [customValue, setCustomValue] = useState("");
+  const [entryContext, setEntryContext] = useState<string | null>(null);
 
-  const handleSelect = async (factKey: string, value: unknown) => {
+  const openExplicitEntry = (option?: { sourceLabel: string }) => {
+    setShowCustom(true);
+    setCustomValue("");
+    setEntryContext(composeExplicitEntryContext(option));
+  };
+
+  const handleSelect = async (value: unknown, sourceLabel: string) => {
+    const route = routeClientConflictCandidateSelection(value);
+    if (route.kind === "explicit_entry") {
+      openExplicitEntry({ sourceLabel });
+      return;
+    }
     setShowCustom(false);
+    setEntryContext(null);
     const allKeys = conflict.values.map((entry) => entry.factKey);
-    await onResolve(allKeys, String(value ?? ""));
+    await onResolve(allKeys, route.resolvedValue);
   };
 
   const handleCustomSave = async () => {
     if (!customValue.trim()) {
       return;
     }
+    const draft = customValue.trim();
     const allKeys = conflict.values.map((entry) => entry.factKey);
-    await onResolve(allKeys, customValue.trim());
-    setShowCustom(false);
-    setCustomValue("");
+    try {
+      await onResolve(allKeys, draft);
+      const next = nextExplicitEntryStateAfterSaveAttempt({ draft, saveSucceeded: true });
+      setShowCustom(next.showCustom);
+      setCustomValue(next.customValue);
+      if (next.entryContextCleared) {
+        setEntryContext(null);
+      }
+    } catch {
+      const next = nextExplicitEntryStateAfterSaveAttempt({ draft, saveSucceeded: false });
+      setShowCustom(next.showCustom);
+      setCustomValue(next.customValue);
+    }
   };
 
   return (
@@ -54,8 +85,14 @@ export function Gate1ClientConflictPanel({
 
       <div className="mt-4 space-y-2">
         {conflict.values.map((option) => {
+          const route = routeConflictCandidateSelection(option.value);
           const isSelected =
-            conflict.isResolved && clientConflictValuesMatch(conflict.resolvedValue, option.value);
+            conflict.isResolved &&
+            route.kind === "save" &&
+            clientConflictValuesMatch(conflict.resolvedValue, option.value);
+          const displayText = isAmbiguousConflictValue(option.value)
+            ? GATE1_LABEL.CONFLICT_AMBIGUOUS_LABEL
+            : option.displayText;
 
           return (
             <button
@@ -69,9 +106,9 @@ export function Gate1ClientConflictPanel({
                   ? "border-brand-primary bg-brand-primary/5"
                   : "border-brand-border bg-brand-card-bg hover:border-brand-primary/40",
               ].join(" ")}
-              onClick={() => void handleSelect(option.factKey, option.value)}
+              onClick={() => void handleSelect(option.value, option.sourceLabel)}
             >
-              <span className="font-semibold text-brand-text-primary">{option.displayText}</span>
+              <span className="font-semibold text-brand-text-primary">{displayText}</span>
               <span className="mt-1 text-sm text-secondary">{option.sourceLabel}</span>
             </button>
           );
@@ -81,28 +118,35 @@ export function Gate1ClientConflictPanel({
           type="button"
           className="w-full rounded-[8px] border border-dashed border-brand-border bg-brand-card-bg px-4 py-3 text-left text-sm font-semibold text-brand-primary hover:border-brand-primary"
           disabled={saving}
-          onClick={() => setShowCustom((value) => !value)}
+          onClick={() => openExplicitEntry()}
         >
           {GATE1_LABEL.CONFLICT_ENTER_OTHER}
         </button>
 
         {showCustom ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={customValue}
-              onChange={(event) => setCustomValue(event.target.value)}
-              placeholder={GATE1_LABEL.CONFLICT_ENTER_OTHER_PROMPT}
-              className="min-w-[12rem] flex-1 rounded-[8px] border border-brand-border px-3 py-2 text-sm outline-none focus:border-brand-primary"
-            />
-            <button
-              type="button"
-              className="btn-primary text-sm disabled:opacity-60"
-              disabled={saving || !customValue.trim()}
-              onClick={() => void handleCustomSave()}
-            >
-              {saving ? GATE1_LABEL.SAVING : GATE1_LABEL.FACT_SAVE}
-            </button>
+          <div className="space-y-2 rounded-[8px] border border-brand-border bg-brand-card-bg px-3 py-3">
+            <p className="text-sm font-semibold text-brand-text-primary">
+              {GATE1_LABEL.CONFLICT_ENTER_TITLE}
+            </p>
+            {entryContext ? <p className="text-sm text-secondary">{entryContext}</p> : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={customValue}
+                onChange={(event) => setCustomValue(event.target.value)}
+                placeholder={GATE1_LABEL.CONFLICT_ENTER_OTHER_PROMPT}
+                className="min-w-[12rem] flex-1 rounded-[8px] border border-brand-border px-3 py-2 text-sm outline-none focus:border-brand-primary"
+                disabled={saving}
+              />
+              <button
+                type="button"
+                className="btn-primary text-sm disabled:opacity-60"
+                disabled={saving || !customValue.trim()}
+                onClick={() => void handleCustomSave()}
+              >
+                {saving ? GATE1_LABEL.SAVING : GATE1_LABEL.FACT_SAVE}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

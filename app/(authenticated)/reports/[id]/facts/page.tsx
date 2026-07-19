@@ -143,6 +143,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
       await refreshAfterPatch();
     } catch (patchError) {
       setSaveError(resolveSaveErrorMessage(patchError, "Failed to save conflict resolution."));
+      throw patchError;
     } finally {
       setSaving(false);
     }
@@ -190,6 +191,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
       await refreshAfterPatch();
     } catch (patchError) {
       setSaveError(resolveSaveErrorMessage(patchError, "Failed to save conflict resolution."));
+      throw patchError;
     } finally {
       setSaving(false);
     }
@@ -231,7 +233,11 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     } catch (reviewError) {
       setConfirmError(
         reviewError instanceof ApiClientError
-          ? resolveFriendlyApiErrorMessage(reviewError, "Failed to save cluster review. Please try again.")
+          ? resolveFriendlyApiErrorMessage(
+              reviewError,
+              "Failed to save cluster review. Please try again.",
+              "save",
+            )
           : "Failed to save cluster review. Please try again.",
       );
     } finally {
@@ -261,7 +267,11 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     } catch (confirmErr) {
       setConfirmError(
         confirmErr instanceof ApiClientError
-          ? resolveFriendlyApiErrorMessage(confirmErr, "Failed to confirm facts. Please try again.")
+          ? resolveFriendlyApiErrorMessage(
+              confirmErr,
+              "Failed to confirm facts. Please try again.",
+              "save",
+            )
           : "Failed to confirm facts. Please try again.",
       );
       setConfirming(false);

@@ -115,7 +115,11 @@ export default function ReviewReportPage({ params }: ReviewReportPageProps) {
     } catch (confirmError) {
       setApproveError(
         confirmError instanceof ApiClientError
-          ? resolveFriendlyApiErrorMessage(confirmError, "Failed to approve report. Please try again.")
+          ? resolveFriendlyApiErrorMessage(
+              confirmError,
+              "Failed to approve report. Please try again.",
+              "save",
+            )
           : "Failed to approve report. Please try again.",
       );
       setApproving(false);
