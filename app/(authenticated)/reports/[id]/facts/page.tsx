@@ -18,7 +18,10 @@ import {
   type KnowledgeBankResponse,
 } from "@/lib/api/reports";
 import { ApiClientError } from "@/lib/api-client";
-import { resolveFriendlyApiErrorMessage } from "@/lib/me-error-messages";
+import {
+  resolveFriendlyApiErrorMessage,
+  resolveGate1SaveErrorMessage,
+} from "@/lib/me-error-messages";
 import { buildUserAddedFactPayload } from "@/lib/knowledge-bank-view";
 import {
   buildGate1LayoutView,
@@ -105,7 +108,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
 
   const resolveSaveErrorMessage = (patchError: unknown, fallback: string) =>
     patchError instanceof ApiClientError
-      ? resolveFriendlyApiErrorMessage(patchError, fallback)
+      ? resolveGate1SaveErrorMessage(patchError)
       : fallback;
 
   const handleSaveFact = async (factKey: string, value: string) => {
@@ -140,6 +143,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
       await refreshAfterPatch();
     } catch (patchError) {
       setSaveError(resolveSaveErrorMessage(patchError, "Failed to save conflict resolution."));
+      throw patchError;
     } finally {
       setSaving(false);
     }
@@ -187,6 +191,7 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
       await refreshAfterPatch();
     } catch (patchError) {
       setSaveError(resolveSaveErrorMessage(patchError, "Failed to save conflict resolution."));
+      throw patchError;
     } finally {
       setSaving(false);
     }
@@ -228,7 +233,11 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     } catch (reviewError) {
       setConfirmError(
         reviewError instanceof ApiClientError
-          ? resolveFriendlyApiErrorMessage(reviewError, "Failed to save cluster review. Please try again.")
+          ? resolveFriendlyApiErrorMessage(
+              reviewError,
+              "Failed to save cluster review. Please try again.",
+              "save",
+            )
           : "Failed to save cluster review. Please try again.",
       );
     } finally {
@@ -258,7 +267,11 @@ export default function FactsReportPage({ params }: FactsReportPageProps) {
     } catch (confirmErr) {
       setConfirmError(
         confirmErr instanceof ApiClientError
-          ? resolveFriendlyApiErrorMessage(confirmErr, "Failed to confirm facts. Please try again.")
+          ? resolveFriendlyApiErrorMessage(
+              confirmErr,
+              "Failed to confirm facts. Please try again.",
+              "save",
+            )
           : "Failed to confirm facts. Please try again.",
       );
       setConfirming(false);

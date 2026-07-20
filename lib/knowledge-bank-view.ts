@@ -2,6 +2,7 @@
  * Normalizes §12.4 knowledge-bank payloads for Gate 1 UI (DB_FIELD_CONTRACT §2.6).
  */
 
+import { GATE1_LABEL } from "@/components/reports/report-status-labels";
 import type { KnowledgeBankResponse, UnreadableSource } from "@/lib/api/reports";
 import { formatUnreadableSourceExplanation } from "@/lib/unreadable-source-labels";
 
@@ -22,15 +23,20 @@ export type NormalizedConflictValue = {
   unit: string | null;
   displayText: string;
   sourceLabel: string;
+  provenanceExcerpt: string | null;
+  requiresExplicitEntry: boolean;
 };
 
 export type NormalizedConflict = {
   factKey: string;
   conflictType: string | null;
-  annotation: string | null;
+  /** Deterministic NGO-safe explanation — never raw agent annotation. */
+  explanation: string;
   values: NormalizedConflictValue[];
   resolvedValue: unknown | null;
   isResolved: boolean;
+  /** Human-readable label for the disputed fact (from facts map when present). */
+  factLabel: string;
 };
 
 export function formatFactValue(value: unknown, unit?: string | null): string {
@@ -41,6 +47,10 @@ export function formatFactValue(value: unknown, unit?: string | null): string {
   return unit ? `${base} ${unit}` : base;
 }
 
+export function isAmbiguousConflictValue(value: unknown): boolean {
+  return value === null || value === undefined || (typeof value === "string" && !value.trim());
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -48,27 +58,92 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-export function normalizeConflicts(conflicts: unknown[]): NormalizedConflict[] {
+function humanizeFactKey(factKey: string): string {
+  const parts = factKey.split(".").filter(Boolean);
+  if (!parts.length) {
+    return "this item";
+  }
+  return parts
+    .map((part) => part.replace(/_/g, " "))
+    .map((part) => (part.length ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" — ");
+}
+
+/** Compose a self-explanatory conflict story without internal identifiers (Amendment 3). */
+export function composeConflictExplanation(
+  conflict: Record<string, unknown>,
+  factLabel: string,
+  values: NormalizedConflictValue[],
+): string {
+  const sources = Array.from(
+    new Set(values.map((v) => v.sourceLabel.trim()).filter(Boolean)),
+  );
+  const sourcePhrase =
+    sources.length === 0
+      ? "your documents"
+      : sources.length === 1
+        ? sources[0]
+        : `${sources.slice(0, -1).join(", ")} and ${sources[sources.length - 1]}`;
+
+  const ambiguousCount = values.filter((v) => v.requiresExplicitEntry).length;
+  const base = `We found more than one value for ${factLabel} in ${sourcePhrase}.`;
+  if (ambiguousCount === 0) {
+    return `${base} Choose which value this report should use.`;
+  }
+  if (ambiguousCount === values.length) {
+    return `${base} None of the sources give a clear value — enter the correct one.`;
+  }
+  if (ambiguousCount === 1) {
+    return `${base} One source mentions a value that isn't specific enough to use — choose a clear value or enter the correct one.`;
+  }
+  return `${base} Some sources mention values that aren't specific enough to use — choose a clear value or enter the correct one.`;
+}
+
+export function normalizeConflicts(
+  conflicts: unknown[],
+  facts: Record<string, unknown> = {},
+): NormalizedConflict[] {
   return conflicts.map((raw) => {
     const conflict = asRecord(raw) ?? {};
-    const values = Array.isArray(conflict.values) ? conflict.values : [];
+    const valuesRaw = Array.isArray(conflict.values) ? conflict.values : [];
+    const factKey = String(conflict.fact_key ?? "");
+    const factRec = asRecord(facts[factKey]);
+    const factLabel =
+      (factRec && typeof factRec.semantic_label === "string" && factRec.semantic_label.trim())
+        ? factRec.semantic_label.trim()
+        : humanizeFactKey(factKey);
+
+    const values: NormalizedConflictValue[] = valuesRaw.map((entry) => {
+      const valueRow = asRecord(entry) ?? {};
+      const unit = typeof valueRow.unit === "string" ? valueRow.unit : null;
+      const value = valueRow.value;
+      const requiresExplicitEntry = isAmbiguousConflictValue(value);
+      const provenance = asRecord(valueRow.provenance);
+      const provenanceExcerpt =
+        provenance && typeof provenance.excerpt === "string" ? provenance.excerpt : null;
+      return {
+        value,
+        unit,
+        displayText: requiresExplicitEntry
+          ? GATE1_LABEL.CONFLICT_AMBIGUOUS_LABEL
+          : formatFactValue(value, unit),
+        sourceLabel: String(valueRow.source_label ?? "Unknown source"),
+        provenanceExcerpt,
+        requiresExplicitEntry,
+      };
+    });
 
     return {
-      factKey: String(conflict.fact_key ?? ""),
+      factKey,
       conflictType: typeof conflict.conflict_type === "string" ? conflict.conflict_type : null,
-      annotation: typeof conflict.annotation === "string" ? conflict.annotation : null,
+      explanation: composeConflictExplanation(conflict, factLabel, values),
       resolvedValue: conflict.resolved_value ?? null,
-      isResolved: conflict.resolved_value !== null && conflict.resolved_value !== undefined,
-      values: values.map((entry) => {
-        const valueRow = asRecord(entry) ?? {};
-        const unit = typeof valueRow.unit === "string" ? valueRow.unit : null;
-        return {
-          value: valueRow.value,
-          unit,
-          displayText: formatFactValue(valueRow.value, unit),
-          sourceLabel: String(valueRow.source_label ?? "Unknown source"),
-        };
-      }),
+      isResolved:
+        conflict.resolved_value !== null &&
+        conflict.resolved_value !== undefined &&
+        !(typeof conflict.resolved_value === "string" && !String(conflict.resolved_value).trim()),
+      values,
+      factLabel,
     };
   });
 }
@@ -78,7 +153,17 @@ export function normalizeFacts(
   unresolvedConflictKeys: Set<string>,
 ): NormalizedFact[] {
   return Object.entries(facts)
-    .filter(([key]) => !unresolvedConflictKeys.has(key))
+    .filter(([key, raw]) => {
+      if (unresolvedConflictKeys.has(key)) {
+        return false;
+      }
+      const fact = asRecord(raw);
+      // D-060: hide provenance-only siblings from ordinary review rows.
+      if (fact && typeof fact.provenance_only_for === "string" && fact.provenance_only_for.trim()) {
+        return false;
+      }
+      return true;
+    })
     .map(([key, raw]) => {
       const fact = asRecord(raw) ?? {};
       const label = String(fact.semantic_label ?? key);
@@ -126,7 +211,7 @@ export function buildKnowledgeBankView(knowledgeBank: KnowledgeBankResponse): {
   unresolvedConflicts: NormalizedConflict[];
   unreadableSources: NormalizedUnreadableSource[];
 } {
-  const conflicts = normalizeConflicts(knowledgeBank.conflicts);
+  const conflicts = normalizeConflicts(knowledgeBank.conflicts, knowledgeBank.facts);
   const unresolvedConflictKeys = new Set(
     conflicts.filter((conflict) => !conflict.isResolved).map((conflict) => conflict.factKey),
   );

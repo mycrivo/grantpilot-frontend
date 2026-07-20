@@ -210,7 +210,11 @@ export default function QuestionsReportPage({ params }: QuestionsReportPageProps
     } catch (submitError) {
       setContinueError(
         submitError instanceof ApiClientError
-          ? resolveFriendlyApiErrorMessage(submitError, "Failed to continue to draft. Please try again.")
+          ? resolveFriendlyApiErrorMessage(
+              submitError,
+              "Failed to continue to draft. Please try again.",
+              "save",
+            )
           : "Failed to continue to draft. Please try again.",
       );
       setContinuing(false);

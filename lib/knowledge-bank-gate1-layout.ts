@@ -438,7 +438,7 @@ function assignToSections(facts: DisplayFact[]): Gate1Sections {
 
 export function buildGate1LayoutView(knowledgeBank: KnowledgeBankResponse): Gate1LayoutView {
   const isDegraded = knowledgeBank.reconciliation_outcome === "degraded";
-  const conflicts = normalizeConflicts(knowledgeBank.conflicts);
+  const conflicts = normalizeConflicts(knowledgeBank.conflicts, knowledgeBank.facts);
   const unresolvedConflictKeys = new Set(
     conflicts.filter((conflict) => !conflict.isResolved).map((conflict) => conflict.factKey),
   );
